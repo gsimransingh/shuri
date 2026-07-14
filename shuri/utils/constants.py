@@ -1,0 +1,14 @@
+"""Shared thresholds and stable application constants."""
+
+from __future__ import annotations
+
+APP_NAME = "shuri"
+CONNECTIVITY_HOST = "1.1.1.1"
+CONNECTIVITY_PORT = 53
+DEFAULT_REPORT_BASENAME = "shuri-report"
+HIGH_CPU_PERCENT = 85.0
+CRITICAL_CPU_PERCENT = 95.0
+LOW_MEMORY_PERCENT = 20.0
+CRITICAL_MEMORY_PERCENT = 10.0
+LOW_DISK_PERCENT = 15.0
+CRITICAL_DISK_PERCENT = 10.0
