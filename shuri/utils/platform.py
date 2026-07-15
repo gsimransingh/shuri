@@ -35,3 +35,13 @@ def run_command(command: Sequence[str], timeout: float = 5.0) -> str | None:
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return None
     return completed.stdout if completed.returncode == 0 else None
+
+
+def run_powershell(script: str, timeout: float = 5.0) -> str | None:
+    """Run a read-only Windows PowerShell command, or return ``None`` on failure."""
+    if not is_windows():
+        return None
+    return run_command(
+        ("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script),
+        timeout=timeout,
+    )

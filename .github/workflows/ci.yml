@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Python 3.12
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and development tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run tests
+        run: python -m pytest
+      - name: Check linting
+        run: python -m ruff check .
+      - name: Check formatting
+        run: python -m black --check .
+      - name: Check types
+        run: python -m mypy shuri

@@ -69,6 +69,7 @@ def show_report(report: Report, console: Console | None = None) -> None:
         target.print(
             Panel.fit(
                 f"[bold]{assessment.score}/100[/bold] — {assessment.label}\n"
+                f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
                 f"Host: {report.hostname}   •   {generated}",
                 title=title,
                 border_style="cyan",
@@ -93,7 +94,10 @@ def show_report(report: Report, console: Console | None = None) -> None:
             )
         )
     if report.assessment and report.assessment.deductions:
-        deductions = Table(title="Health-score deductions", header_style="bold yellow")
+        deductions = Table(
+            title=f"Health-score deductions (total: -{assessment.total_deductions})",
+            header_style="bold yellow",
+        )
         deductions.add_column("Points", justify="right")
         deductions.add_column("Reason")
         deductions.add_column("Check")

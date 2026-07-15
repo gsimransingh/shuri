@@ -26,6 +26,10 @@ app = typer.Typer(
 OutputPath = Annotated[
     Path | None, typer.Option("--output", "-o", help="Where to write the report.")
 ]
+ReportFormat = Annotated[
+    str | None,
+    typer.Option("--format", "-f", help="html, json, or markdown"),
+]
 
 
 def _build_report(with_assessment: bool, names: tuple[str, ...] | None = None) -> Report:
@@ -36,14 +40,21 @@ def _build_report(with_assessment: bool, names: tuple[str, ...] | None = None) -
     return report
 
 
-def _selected_format(html: bool, json_format: bool, markdown: bool) -> str | None:
-    selected = [
+def _selected_format(
+    report_format: str | None, html: bool, json_format: bool, markdown: bool
+) -> str | None:
+    selected = [report_format.lower()] if report_format else []
+    selected.extend(
         name
         for name, enabled in (("html", html), ("json", json_format), ("markdown", markdown))
         if enabled
-    ]
+    )
     if len(selected) > 1:
-        raise typer.BadParameter("Choose only one of --html, --json, or --markdown.")
+        raise typer.BadParameter(
+            "Choose one format option: -f/--format, --html, --json, or --markdown."
+        )
+    if selected and selected[0] not in {"html", "json", "markdown"}:
+        raise typer.BadParameter("Format must be html, json, or markdown.")
     return selected[0] if selected else None
 
 
@@ -74,15 +85,16 @@ def scan() -> None:
 
 @app.command()
 def doctor(
+    report_format: ReportFormat = None,
     html: Annotated[bool, typer.Option("--html", help="Export an HTML report.")] = False,
     json_format: Annotated[bool, typer.Option("--json", help="Export a JSON report.")] = False,
     markdown: Annotated[bool, typer.Option("--markdown", help="Export a Markdown report.")] = False,
     output: OutputPath = None,
 ) -> None:
     """Run all diagnostics, calculate health, and optionally export a report."""
-    report_format = _selected_format(html, json_format, markdown)
+    report_format = _selected_format(report_format, html, json_format, markdown)
     if output and report_format is None:
-        raise typer.BadParameter("--output requires --html, --json, or --markdown.")
+        raise typer.BadParameter("--output requires -f/--format, --html, --json, or --markdown.")
     report = _build_report(with_assessment=True)
     show_report(report)
     if report_format:

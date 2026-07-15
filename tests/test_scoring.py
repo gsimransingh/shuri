@@ -18,6 +18,7 @@ def test_assessment_collects_explicit_deductions() -> None:
     assert assessment.score == 85
     assert assessment.label == "Healthy"
     assert assessment.deductions == result.deductions
+    assert assessment.total_deductions == 15
 
 
 def test_assessment_never_falls_below_zero() -> None:

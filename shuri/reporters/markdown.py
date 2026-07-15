@@ -26,7 +26,12 @@ def render_markdown(report: Report) -> str:
     ]
     if report.assessment:
         lines.extend(
-            (f"- **Health:** {report.assessment.score}/100 — {report.assessment.label}", "")
+            (
+                f"- **Health:** {report.assessment.score}/100 — {report.assessment.label}",
+                f"- **Score calculation:** 100 - {report.assessment.total_deductions} "
+                f"deduction point(s) = {report.assessment.score}",
+                "",
+            )
         )
     else:
         lines.append("")

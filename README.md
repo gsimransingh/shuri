@@ -12,16 +12,34 @@ EDR, or antivirus product.
 - CPU utilisation, core count, frequency, and system load when available
 - Memory and swap pressure
 - Disk capacity and free space
-- Network adapters, name resolution, and internet reachability
-- Battery condition on supported laptops
+- Network adapters, MAC addresses, default gateway, DNS configuration, and reachability
+- Battery charge plus capacity health on supported Windows laptops
 - Operating-system metadata and uptime
-- Key Windows services, pending reboot state, Defender, and recent event-log activity
+- Key Windows services, pending reboot/update state, antivirus posture, and recent event-log activity
 
 Every deduction in the health score is shown in the report.
+The report also shows the exact calculation: `100 - total deductions = health score`.
 
 ## Install
 
 Shuri requires Python 3.12 or later.
+
+### Install as a system command
+
+The command is named `shuri`, while the distribution is deliberately named
+`shuri-cli` to avoid conflicts with unrelated Python packages. Install it with
+[`pipx`](https://pipx.pypa.io/) so it is available from any folder without
+mixing its dependencies into your system Python:
+
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath
+# Open a new PowerShell window, then replace YOUR_USERNAME.
+pipx install git+https://github.com/YOUR_USERNAME/shuri.git
+shuri doctor
+```
+
+### Install from a clone
 
 ```powershell
 python -m pip install .
@@ -42,9 +60,9 @@ black --check .
 ```text
 shuri scan                         # all diagnostics
 shuri doctor                       # diagnostics plus health score
-shuri doctor --html --output report.html
-shuri doctor --json --output report.json
-shuri doctor --markdown
+shuri doctor -f html -o report.html
+shuri doctor -f json -o report.json
+shuri doctor -f markdown
 shuri cpu                          # one diagnostic
 shuri network
 shuri report --format html         # export the last saved assessment
@@ -53,6 +71,8 @@ shuri version
 
 Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
+Windows capacity, update, and antivirus checks use native Windows data when available;
+an unavailable data source is reported as unknown rather than scored as a failure.
 
 ## Health score
 

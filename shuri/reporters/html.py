@@ -45,6 +45,8 @@ _TEMPLATE = """<!doctype html>
     <div class="score">
       {{ report.assessment.score }}/100 - {{ report.assessment.label }}
     </div>
+    <p class="muted">100 - {{ report.assessment.total_deductions }} deduction point(s)
+      = {{ report.assessment.score }}</p>
     {% if report.assessment.deductions %}
     <h3>Score deductions</h3>
     <ul>

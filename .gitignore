@@ -9,6 +9,6 @@ dist/
 build/
 *.egg-info/
 reports/
+outputs/
 .shuri/
 shuri-report.*
-outputs/

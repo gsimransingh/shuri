@@ -48,6 +48,11 @@ class HealthAssessment:
     label: str
     deductions: tuple[ScoreDeduction, ...] = ()
 
+    @property
+    def total_deductions(self) -> int:
+        """Return the total points removed from the starting health score."""
+        return sum(max(0, deduction.points) for deduction in self.deductions)
+
 
 @dataclass(frozen=True, slots=True)
 class Report:
@@ -57,7 +62,7 @@ class Report:
     hostname: str
     results: tuple[CheckResult, ...]
     assessment: HealthAssessment | None = None
-    shuri_version: str = "0.1.0"
+    shuri_version: str = "0.2.0"
 
     @classmethod
     def create(
@@ -78,4 +83,6 @@ class Report:
         """Return JSON-safe report data."""
         data = asdict(self)
         data["generated_at"] = self.generated_at.isoformat()
+        if self.assessment is not None:
+            data["assessment"]["total_deductions"] = self.assessment.total_deductions
         return data

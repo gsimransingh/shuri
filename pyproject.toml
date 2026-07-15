@@ -3,8 +3,8 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shuri"
-version = "0.1.0"
+name = "shuri-cli"
+version = "0.2.0"
 description = "Fast, transparent workstation health diagnostics for support and security teams."
 readme = "README.md"
 requires-python = ">=3.12"
