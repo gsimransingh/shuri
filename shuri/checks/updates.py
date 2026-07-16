@@ -12,7 +12,9 @@ def _registry_key_exists(path: str) -> bool:
     import winreg
 
     try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path):
+        with winreg.OpenKey(  # type: ignore[attr-defined, unused-ignore]
+            winreg.HKEY_LOCAL_MACHINE, path  # type: ignore[attr-defined, unused-ignore]
+        ):
             return True
     except FileNotFoundError:
         return False
@@ -24,8 +26,10 @@ def _registry_value_exists(path: str, name: str) -> bool:
     import winreg
 
     try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
-            winreg.QueryValueEx(key, name)
+        with winreg.OpenKey(  # type: ignore[attr-defined, unused-ignore]
+            winreg.HKEY_LOCAL_MACHINE, path  # type: ignore[attr-defined, unused-ignore]
+        ) as key:
+            winreg.QueryValueEx(key, name)  # type: ignore[attr-defined, unused-ignore]
     except (FileNotFoundError, OSError):
         return False
     return True

@@ -157,6 +157,12 @@ def system() -> None:
     _single_check("system")
 
 
+@app.command(name="system-info")
+def system_info() -> None:
+    """Show operating-system and workstation information."""
+    _single_check("system")
+
+
 @app.command()
 def services() -> None:
     """Run Windows service diagnostics only."""
