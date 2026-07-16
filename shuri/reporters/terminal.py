@@ -80,9 +80,7 @@ def show_report(report: Report, console: Console | None = None) -> None:
             )
         )
     else:
-        target.print(
-            Panel.fit(f"Host: {report.hostname}", title=title, border_style="bright_blue")
-        )
+        target.print(Panel.fit(f"Host: {report.hostname}", title=title, border_style="bright_blue"))
     table = Table(show_header=True, header_style="bold bright_blue")
     table.add_column("Check", style="bold")
     table.add_column("Status", width=12)
