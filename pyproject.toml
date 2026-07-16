@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shuri"
+version = "0.1.0"
+description = "A modern workstation diagnostics toolkit for IT professionals."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+
+authors = [
+    { name = "Gursimran Singh" }
+]
+
+dependencies = [
+    "typer>=0.16.0",
+    "rich>=14.0.0",
+    "psutil>=7.0.0",
+    "jinja2>=3.1.6",
+    "platformdirs>=4.4.0"
+]
+
+[project.scripts]
+shuri = "shuri.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.9.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["shuri*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
