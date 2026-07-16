@@ -38,20 +38,24 @@ def _metric_value(key: str, value: object) -> str:
     return str(value)
 
 
+def _metric_label(key: str) -> str:
+    return key.removesuffix("_bytes").replace("_", " ").title()
+
+
 def show_check(result: CheckResult, console: Console | None = None) -> None:
     """Display one detailed diagnostic result."""
     target = console or _CONSOLE
-    table = Table(title=result.title, show_header=True, header_style="bold cyan")
+    table = Table(title=result.title, show_header=True, header_style="bold bright_blue")
     table.add_column("Status", width=12)
     table.add_column("Summary")
     table.add_row(_status_text(result.status), result.summary)
     target.print(table)
     if result.metrics:
         metrics = Table(show_header=True, header_style="bold")
-        metrics.add_column("Metric", style="cyan")
+        metrics.add_column("Metric", style="bright_blue")
         metrics.add_column("Value")
         for key, value in result.metrics.items():
-            metrics.add_row(key.replace("_", " ").title(), _metric_value(key, value))
+            metrics.add_row(_metric_label(key), _metric_value(key, value))
         target.print(metrics)
     if result.findings:
         target.print(
@@ -72,12 +76,14 @@ def show_report(report: Report, console: Console | None = None) -> None:
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
                 f"Host: {report.hostname}   •   {generated}",
                 title=title,
-                border_style="cyan",
+                border_style="bright_blue",
             )
         )
     else:
-        target.print(Panel.fit(f"Host: {report.hostname}", title=title, border_style="cyan"))
-    table = Table(show_header=True, header_style="bold cyan")
+        target.print(
+            Panel.fit(f"Host: {report.hostname}", title=title, border_style="bright_blue")
+        )
+    table = Table(show_header=True, header_style="bold bright_blue")
     table.add_column("Check", style="bold")
     table.add_column("Status", width=12)
     table.add_column("Summary")

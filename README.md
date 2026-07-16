@@ -65,9 +65,12 @@ shuri doctor -f json -o report.json
 shuri doctor -f markdown
 shuri cpu                          # one diagnostic
 shuri network
+shuri system-info                  # OS and workstation information
 shuri report --format html         # export the last saved assessment
 shuri version
 ```
+
+From a source checkout, `python -m shuri system-info` runs the local code directly.
 
 Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
