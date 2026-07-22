@@ -34,8 +34,8 @@ mixing its dependencies into your system Python:
 ```powershell
 py -m pip install --user pipx
 py -m pipx ensurepath
-# Open a new PowerShell window, then replace YOUR_USERNAME.
-pipx install git+https://github.com/YOUR_USERNAME/shuri.git
+# Open a new PowerShell window, then run:
+pipx install git+https://github.com/gsimransingh/shuri.git
 shuri doctor
 ```
 
