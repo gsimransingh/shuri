@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import is_windows, run_powershell
 
@@ -88,14 +89,22 @@ def check_updates() -> CheckResult:
     if reboot_pending:
         status = CheckStatus.WARNING
         findings.append("Restart the workstation to complete a pending update or servicing action.")
-        deductions.append(ScoreDeduction("A Windows restart is pending", 5, "updates"))
+        deductions.append(
+            ScoreDeduction(
+                "A Windows restart is pending", DEFAULT_POLICY.pending_restart_points, "updates"
+            )
+        )
     if update_count is None:
         status = CheckStatus.UNKNOWN if status is CheckStatus.PASS else status
         findings.append("Windows Update availability could not be queried.")
     elif update_count > 0:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append(f"{update_count} Windows update(s) are available.")
-        deductions.append(ScoreDeduction("Windows updates are available", 3, "updates"))
+        deductions.append(
+            ScoreDeduction(
+                "Windows updates are available", DEFAULT_POLICY.available_updates_points, "updates"
+            )
+        )
     if status is CheckStatus.PASS:
         summary = "No pending reboot or available Windows updates were found."
     elif reboot_pending and update_count is not None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import is_windows, run_command
 
@@ -54,7 +55,11 @@ def check_services() -> CheckResult:
         f"{_SERVICES[name]} is not running." for name in (*stopped_critical, *stopped_noncritical)
     )
     deductions = tuple(
-        ScoreDeduction(f"Critical service {_SERVICES[name]} is not running", 8, "services")
+        ScoreDeduction(
+            f"Critical service {_SERVICES[name]} is not running",
+            DEFAULT_POLICY.stopped_service_points,
+            "services",
+        )
         for name in stopped_critical
     )
     status = (

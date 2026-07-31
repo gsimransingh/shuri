@@ -42,9 +42,14 @@ shuri doctor
 ### Install from a clone
 
 ```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install .
 shuri doctor
 ```
+
+Using a virtual environment keeps Shuri and its `shuri` command isolated from other Python
+installations on the workstation.
 
 For contributors:
 

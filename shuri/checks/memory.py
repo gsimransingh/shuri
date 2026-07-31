@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import psutil
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.constants import CRITICAL_MEMORY_PERCENT, LOW_MEMORY_PERCENT
 
 
 def build_memory_result(
@@ -21,18 +21,30 @@ def build_memory_result(
     status = CheckStatus.PASS
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
-    if available_percent < CRITICAL_MEMORY_PERCENT:
+    if available_percent < DEFAULT_POLICY.critical_memory_percent:
         status = CheckStatus.FAIL
         findings.append("Available memory is critically low.")
-        deductions.append(ScoreDeduction("Available memory is below 10%", 10, "memory"))
-    elif available_percent < LOW_MEMORY_PERCENT:
+        deductions.append(
+            ScoreDeduction(
+                "Available memory is below 10%", DEFAULT_POLICY.critical_memory_points, "memory"
+            )
+        )
+    elif available_percent < DEFAULT_POLICY.low_memory_percent:
         status = CheckStatus.WARNING
         findings.append("Available memory is low.")
-        deductions.append(ScoreDeduction("Available memory is below 20%", 5, "memory"))
-    if swap_percent >= 80:
+        deductions.append(
+            ScoreDeduction(
+                "Available memory is below 20%", DEFAULT_POLICY.low_memory_points, "memory"
+            )
+        )
+    if swap_percent >= DEFAULT_POLICY.high_swap_percent:
         status = CheckStatus.FAIL if status is CheckStatus.PASS else status
         findings.append("Swap or page file use is very high.")
-        deductions.append(ScoreDeduction("Swap or page file use is above 80%", 5, "memory"))
+        deductions.append(
+            ScoreDeduction(
+                "Swap or page file use is above 80%", DEFAULT_POLICY.high_swap_points, "memory"
+            )
+        )
     return CheckResult(
         name="memory",
         title="Memory",

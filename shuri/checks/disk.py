@@ -6,9 +6,9 @@ from collections.abc import Iterable
 
 import psutil
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.disk import DiskSnapshot
-from shuri.utils.constants import CRITICAL_DISK_PERCENT, LOW_DISK_PERCENT
 from shuri.utils.platform import system_drive
 
 
@@ -28,20 +28,36 @@ def build_disk_result(disks: Iterable[DiskSnapshot], system_mount: str) -> Check
     for disk in snapshots:
         free_percent = 100 - disk.used_percent
         is_system = disk.mountpoint.casefold() == system_mount.casefold()
-        if is_system and free_percent < CRITICAL_DISK_PERCENT:
+        if is_system and free_percent < DEFAULT_POLICY.critical_disk_percent:
             status = CheckStatus.FAIL
             findings.append(
                 f"System drive {disk.mountpoint} has only {free_percent:.1f}% free space."
             )
-            deductions.append(ScoreDeduction("System drive is below 10% free", 15, "disk"))
-        elif free_percent < CRITICAL_DISK_PERCENT:
+            deductions.append(
+                ScoreDeduction(
+                    "System drive is below 10% free",
+                    DEFAULT_POLICY.critical_system_disk_points,
+                    "disk",
+                )
+            )
+        elif free_percent < DEFAULT_POLICY.critical_disk_percent:
             status = CheckStatus.WARNING if status is CheckStatus.PASS else status
             findings.append(f"{disk.mountpoint} has only {free_percent:.1f}% free space.")
-            deductions.append(ScoreDeduction(f"{disk.mountpoint} is below 10% free", 5, "disk"))
-        elif is_system and free_percent < LOW_DISK_PERCENT:
+            deductions.append(
+                ScoreDeduction(
+                    f"{disk.mountpoint} is below 10% free",
+                    DEFAULT_POLICY.critical_other_disk_points,
+                    "disk",
+                )
+            )
+        elif is_system and free_percent < DEFAULT_POLICY.low_disk_percent:
             status = CheckStatus.WARNING if status is CheckStatus.PASS else status
             findings.append(f"System drive {disk.mountpoint} is running low on free space.")
-            deductions.append(ScoreDeduction("System drive is below 15% free", 8, "disk"))
+            deductions.append(
+                ScoreDeduction(
+                    "System drive is below 15% free", DEFAULT_POLICY.low_system_disk_points, "disk"
+                )
+            )
     return CheckResult(
         name="disk",
         title="Disk",

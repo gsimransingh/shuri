@@ -74,6 +74,8 @@ def show_report(report: Report, console: Console | None = None) -> None:
             Panel.fit(
                 f"[bold]{assessment.score}/100[/bold] — {assessment.label}\n"
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
+                f"Coverage: {assessment.completed_checks}/{len(report.results)} checks "
+                f"({assessment.coverage_percent:.1f}%)\n"
                 f"Host: {report.hostname}   •   {generated}",
                 title=title,
                 border_style="bright_blue",

@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION, __version__
+
 
 class CheckStatus(StrEnum):
     """Outcome of one diagnostic."""
@@ -24,6 +26,10 @@ class ScoreDeduction:
     reason: str
     points: int
     check: str
+
+    def __post_init__(self) -> None:
+        if self.points < 0:
+            raise ValueError("Score deductions cannot have negative points.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +53,10 @@ class HealthAssessment:
     score: int
     label: str
     deductions: tuple[ScoreDeduction, ...] = ()
+    completed_checks: int = 0
+    unknown_checks: tuple[str, ...] = ()
+    coverage_percent: float = 100.0
+    policy_version: int = SCORING_POLICY_VERSION
 
     @property
     def total_deductions(self) -> int:
@@ -62,7 +72,8 @@ class Report:
     hostname: str
     results: tuple[CheckResult, ...]
     assessment: HealthAssessment | None = None
-    shuri_version: str = "0.2.0"
+    shuri_version: str = __version__
+    schema_version: int = REPORT_SCHEMA_VERSION
 
     @classmethod
     def create(

@@ -7,9 +7,9 @@ import platform
 
 import psutil
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.cpu import CpuSnapshot
-from shuri.utils.constants import CRITICAL_CPU_PERCENT, HIGH_CPU_PERCENT
 
 
 def build_cpu_result(
@@ -19,14 +19,18 @@ def build_cpu_result(
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
-    if snapshot.utilisation_percent >= CRITICAL_CPU_PERCENT:
+    if snapshot.utilisation_percent >= DEFAULT_POLICY.critical_cpu_percent:
         status = CheckStatus.FAIL
         findings.append("CPU usage is critically high.")
-        deductions.append(ScoreDeduction("CPU usage is above 95%", 10, "cpu"))
-    elif snapshot.utilisation_percent >= HIGH_CPU_PERCENT:
+        deductions.append(
+            ScoreDeduction("CPU usage is above 95%", DEFAULT_POLICY.critical_cpu_points, "cpu")
+        )
+    elif snapshot.utilisation_percent >= DEFAULT_POLICY.high_cpu_percent:
         status = CheckStatus.WARNING
         findings.append("CPU usage is elevated.")
-        deductions.append(ScoreDeduction("CPU usage is above 85%", 5, "cpu"))
+        deductions.append(
+            ScoreDeduction("CPU usage is above 85%", DEFAULT_POLICY.high_cpu_points, "cpu")
+        )
     metrics: dict[str, object] = {
         "model": snapshot.model or "Unavailable",
         "architecture": snapshot.architecture,

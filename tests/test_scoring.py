@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from shuri.core.scoring import assess_health, score_label
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 
@@ -39,3 +41,31 @@ def test_score_labels_match_published_boundaries() -> None:
     assert score_label(60) == "Needs Attention"
     assert score_label(40) == "Poor"
     assert score_label(39) == "Critical"
+
+
+def test_unknown_checks_make_assessment_explicitly_incomplete() -> None:
+    results = (
+        CheckResult("cpu", "CPU", CheckStatus.PASS, "Normal"),
+        CheckResult("updates", "Updates", CheckStatus.UNKNOWN, "Unavailable"),
+    )
+
+    assessment = assess_health(results)
+
+    assert assessment.score == 100
+    assert assessment.label == "Incomplete"
+    assert assessment.completed_checks == 1
+    assert assessment.unknown_checks == ("updates",)
+    assert assessment.coverage_percent == 50.0
+
+
+def test_empty_assessment_has_zero_coverage() -> None:
+    assessment = assess_health(())
+
+    assert assessment.coverage_percent == 0.0
+    assert assessment.completed_checks == 0
+    assert assessment.label == "Incomplete"
+
+
+def test_negative_deductions_are_rejected() -> None:
+    with pytest.raises(ValueError, match="negative"):
+        ScoreDeduction("Invalid", -1, "test")
