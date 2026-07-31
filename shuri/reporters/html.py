@@ -47,7 +47,8 @@ _TEMPLATE = """<!doctype html>
     </div>
     <p class="muted">100 - {{ report.assessment.total_deductions }} deduction point(s)
       = {{ report.assessment.score }}</p>
-    <p class="muted">Coverage: {{ report.assessment.completed_checks }}/{{ report.results | length }}
+    <p class="muted">Coverage:
+      {{ report.assessment.completed_checks }}/{{ report.results | length }}
       checks completed ({{ report.assessment.coverage_percent }}%)</p>
     {% if report.assessment.deductions %}
     <h3>Score deductions</h3>
