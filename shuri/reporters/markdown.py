@@ -30,6 +30,8 @@ def render_markdown(report: Report) -> str:
                 f"- **Health:** {report.assessment.score}/100 — {report.assessment.label}",
                 f"- **Score calculation:** 100 - {report.assessment.total_deductions} "
                 f"deduction point(s) = {report.assessment.score}",
+                f"- **Coverage:** {report.assessment.completed_checks}/{len(report.results)} "
+                f"checks completed ({report.assessment.coverage_percent:.1f}%)",
                 "",
             )
         )

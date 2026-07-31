@@ -9,3 +9,7 @@ class ShuriError(Exception):
 
 class UnknownDiagnosticError(ShuriError):
     """Raised when a named diagnostic is not registered."""
+
+
+class ReportStorageError(ShuriError):
+    """Raised when a saved report is corrupt or incompatible."""

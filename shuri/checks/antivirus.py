@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import is_windows, run_powershell
 
@@ -114,7 +115,9 @@ def check_antivirus() -> CheckResult:
             findings=("Enable a supported antivirus product and verify its status.",),
             deductions=(
                 ScoreDeduction(
-                    "No active Microsoft Defender antivirus was detected", 20, "antivirus"
+                    "No active Microsoft Defender antivirus was detected",
+                    DEFAULT_POLICY.antivirus_disabled_points,
+                    "antivirus",
                 ),
             ),
         )
@@ -129,11 +132,15 @@ def check_antivirus() -> CheckResult:
                 "Turn on real-time protection or verify the approved third-party antivirus.",
             ),
             deductions=(
-                ScoreDeduction("Real-time antivirus protection is disabled", 10, "antivirus"),
+                ScoreDeduction(
+                    "Real-time antivirus protection is disabled",
+                    DEFAULT_POLICY.realtime_antivirus_disabled_points,
+                    "antivirus",
+                ),
             ),
         )
     signature_age = _signature_age_days(status_data.get("AntivirusSignatureLastUpdated"))
-    if signature_age is not None and signature_age > 14:
+    if signature_age is not None and signature_age > DEFAULT_POLICY.stale_antivirus_signature_days:
         return CheckResult(
             name="antivirus",
             title="Antivirus",
@@ -142,7 +149,11 @@ def check_antivirus() -> CheckResult:
             metrics={"defender": status_data, "signature_age_days": signature_age},
             findings=("Update Microsoft Defender signatures.",),
             deductions=(
-                ScoreDeduction("Antivirus signatures are more than 14 days old", 5, "antivirus"),
+                ScoreDeduction(
+                    "Antivirus signatures are more than 14 days old",
+                    DEFAULT_POLICY.stale_antivirus_signatures_points,
+                    "antivirus",
+                ),
             ),
         )
     return CheckResult(

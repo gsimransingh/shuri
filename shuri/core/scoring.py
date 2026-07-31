@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from shuri.models import CheckResult, HealthAssessment, ScoreDeduction
+from shuri.models import CheckResult, CheckStatus, HealthAssessment, ScoreDeduction
+from shuri.version import SCORING_POLICY_VERSION
 
 
 def score_label(score: int) -> str:
@@ -25,4 +26,18 @@ def assess_health(results: tuple[CheckResult, ...]) -> HealthAssessment:
     )
     total = sum(max(0, deduction.points) for deduction in deductions)
     score = max(0, min(100, 100 - total))
-    return HealthAssessment(score=score, label=score_label(score), deductions=deductions)
+    unknown_checks = tuple(
+        result.name for result in results if result.status is CheckStatus.UNKNOWN
+    )
+    completed_checks = len(results) - len(unknown_checks)
+    coverage_percent = round(completed_checks / len(results) * 100, 1) if results else 0.0
+    label = score_label(score) if results and not unknown_checks else "Incomplete"
+    return HealthAssessment(
+        score=score,
+        label=label,
+        deductions=deductions,
+        completed_checks=completed_checks,
+        unknown_checks=unknown_checks,
+        coverage_percent=coverage_percent,
+        policy_version=SCORING_POLICY_VERSION,
+    )

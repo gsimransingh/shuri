@@ -9,11 +9,9 @@ from uuid import uuid4
 
 import psutil
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import is_windows, run_command
-
-_CRITICAL_HEALTH_PERCENT = 60.0
-_LOW_HEALTH_PERCENT = 80.0
 
 
 def parse_battery_report(report: str) -> tuple[int | None, int | None]:
@@ -66,19 +64,38 @@ def check_battery() -> CheckResult:
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
-    if battery.percent < 10 and not battery.power_plugged:
+    if battery.percent < DEFAULT_POLICY.low_battery_charge_percent and not battery.power_plugged:
         status = CheckStatus.WARNING
         findings.append("Battery charge is below 10% and the device is not charging.")
-        deductions.append(ScoreDeduction("Battery charge is below 10%", 3, "battery"))
+        deductions.append(
+            ScoreDeduction(
+                "Battery charge is below 10%", DEFAULT_POLICY.low_battery_charge_points, "battery"
+            )
+        )
     design_capacity, full_charge_capacity, health_percent = _battery_health()
-    if health_percent is not None and health_percent < _CRITICAL_HEALTH_PERCENT:
+    if (
+        health_percent is not None
+        and health_percent < DEFAULT_POLICY.critical_battery_health_percent
+    ):
         status = CheckStatus.FAIL
         findings.append("Battery full-charge capacity is below 60% of its design capacity.")
-        deductions.append(ScoreDeduction("Battery health is below 60%", 5, "battery"))
-    elif health_percent is not None and health_percent < _LOW_HEALTH_PERCENT:
+        deductions.append(
+            ScoreDeduction(
+                "Battery health is below 60%",
+                DEFAULT_POLICY.critical_battery_health_points,
+                "battery",
+            )
+        )
+    elif health_percent is not None and health_percent < DEFAULT_POLICY.low_battery_health_percent:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append("Battery full-charge capacity is below 80% of its design capacity.")
-        deductions.append(ScoreDeduction("Battery health is below 80%", 3, "battery"))
+        deductions.append(
+            ScoreDeduction(
+                "Battery health is below 80%",
+                DEFAULT_POLICY.low_battery_health_points,
+                "battery",
+            )
+        )
     power_state = "charging" if battery.power_plugged else "on battery"
     health_summary = (
         f" Estimated capacity health is {health_percent:.0f}%."

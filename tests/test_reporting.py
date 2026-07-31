@@ -51,3 +51,14 @@ def test_reports_include_the_explicit_score_calculation() -> None:
     assert '"total_deductions": 8' in render_json(report)
     assert "100 - 8 deduction point(s) = 92" in render_markdown(report)
     assert "100 - 8 deduction point(s)" in render_html(report)
+
+
+def test_reports_expose_incomplete_assessment_coverage() -> None:
+    result = CheckResult("updates", "Updates", CheckStatus.UNKNOWN, "Unavailable")
+    report = Report.create((result,), "workstation-01", assess_health((result,)))
+
+    rendered_json = render_json(report)
+    assert '"label": "Incomplete"' in rendered_json
+    assert '"coverage_percent": 0.0' in rendered_json
+    assert "0/1 checks completed" in render_markdown(report)
+    assert "0/1" in render_html(report)

@@ -8,6 +8,7 @@ from typing import Any
 
 import psutil
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.network import AdapterSnapshot
 from shuri.utils.constants import CONNECTIVITY_HOST, CONNECTIVITY_PORT
@@ -117,15 +118,29 @@ def check_network() -> CheckResult:
     if not active:
         status = CheckStatus.FAIL
         findings.append("No active network adapter with an IP address was found.")
-        deductions.append(ScoreDeduction("No active network adapter was found", 10, "network"))
+        deductions.append(
+            ScoreDeduction(
+                "No active network adapter was found",
+                DEFAULT_POLICY.no_network_adapter_points,
+                "network",
+            )
+        )
     if not dns_resolution:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append("DNS resolution for example.com failed.")
-        deductions.append(ScoreDeduction("DNS resolution failed", 5, "network"))
+        deductions.append(
+            ScoreDeduction("DNS resolution failed", DEFAULT_POLICY.dns_failure_points, "network")
+        )
     if not connectivity:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append("A short internet reachability check failed.")
-        deductions.append(ScoreDeduction("Internet reachability check failed", 5, "network"))
+        deductions.append(
+            ScoreDeduction(
+                "Internet reachability check failed",
+                DEFAULT_POLICY.reachability_failure_points,
+                "network",
+            )
+        )
     dns_state = "available" if dns_resolution else "unavailable"
     return CheckResult(
         name="network",

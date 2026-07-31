@@ -10,6 +10,7 @@ import typer
 
 from shuri import __version__
 from shuri.core import DiagnosticRunner, assess_health, default_registry
+from shuri.core.exceptions import ReportStorageError
 from shuri.core.storage import load_latest_report, save_latest_report
 from shuri.models import Report
 from shuri.reporters import render_html, render_json, render_markdown
@@ -109,7 +110,11 @@ def report(
     output: OutputPath = None,
 ) -> None:
     """Export the most recently saved Shuri assessment."""
-    saved = load_latest_report()
+    try:
+        saved = load_latest_report()
+    except ReportStorageError as error:
+        show_error(str(error))
+        raise typer.Exit(code=1) from error
     if saved is None:
         show_error("No saved report exists. Run 'shuri doctor' or 'shuri scan' first.")
         raise typer.Exit(code=1)

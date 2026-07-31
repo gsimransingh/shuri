@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import is_windows, run_command
 
@@ -39,13 +40,21 @@ def check_event_logs() -> CheckResult:
         status = CheckStatus.FAIL
         findings.append(f"{critical} recent critical System event(s) found.")
         deductions.append(
-            ScoreDeduction("Recent critical System events were found", 10, "eventlogs")
+            ScoreDeduction(
+                "Recent critical System events were found",
+                DEFAULT_POLICY.critical_event_points,
+                "eventlogs",
+            )
         )
-    if errors >= 5:
+    if errors >= DEFAULT_POLICY.repeated_error_event_count:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append(f"{errors} recent error System event(s) found.")
         deductions.append(
-            ScoreDeduction("Five or more recent System errors were found", 5, "eventlogs")
+            ScoreDeduction(
+                "Five or more recent System errors were found",
+                DEFAULT_POLICY.repeated_error_event_points,
+                "eventlogs",
+            )
         )
     return CheckResult(
         name="eventlogs",
