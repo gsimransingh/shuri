@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 from shuri.models import Report
 from shuri.utils.helpers import format_bytes
 
@@ -16,12 +18,25 @@ def _display_metric(value: object, key: str) -> str:
     return str(value)
 
 
+def _markdown_text(value: object) -> str:
+    """Escape collected text so it cannot inject Markdown or raw HTML."""
+    text = str(value).replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    text = escape(text, quote=False).replace("\\", "\\\\")
+    for marker in ("`", "*", "_", "[", "]"):
+        text = text.replace(marker, f"\\{marker}")
+    return text
+
+
+def _table_cell(value: object) -> str:
+    return _markdown_text(value).replace("|", "\\|")
+
+
 def render_markdown(report: Report) -> str:
     """Render a shareable Markdown health assessment."""
     lines = [
         "# Shuri Workstation Health Report",
         "",
-        f"- **Host:** {report.hostname}",
+        f"- **Host:** {_markdown_text(report.hostname)}",
         f"- **Generated:** {report.generated_at.isoformat()}",
         f"- **Scan duration:** {report.duration_ms / 1000:.1f}s",
         f"- **Redacted:** {'Yes' if report.redacted else 'No'}",
@@ -29,7 +44,8 @@ def render_markdown(report: Report) -> str:
     if report.assessment:
         lines.extend(
             (
-                f"- **Health:** {report.assessment.score}/100 — {report.assessment.label}",
+                f"- **Health:** {report.assessment.score}/100 — "
+                f"{_markdown_text(report.assessment.label)}",
                 f"- **Score calculation:** 100 - {report.assessment.total_deductions} "
                 f"deduction point(s) = {report.assessment.score}",
                 f"- **Coverage:** {report.assessment.completed_checks}/{len(report.results)} "
@@ -48,12 +64,13 @@ def render_markdown(report: Report) -> str:
         )
     )
     lines.extend(
-        f"| {result.title} | {result.status.value.upper()} | {result.summary} | "
+        f"| {_table_cell(result.title)} | {result.status.value.upper()} | "
+        f"{_table_cell(result.summary)} | "
         f"{result.duration_ms:.0f} ms |"
         for result in report.results
     )
     for result in report.results:
-        lines.extend(("", f"## {result.title}", "", result.summary))
+        lines.extend(("", f"## {_markdown_text(result.title)}", "", _markdown_text(result.summary)))
         scalar_metrics = {
             key: value
             for key, value in result.metrics.items()
@@ -62,16 +79,17 @@ def render_markdown(report: Report) -> str:
         if scalar_metrics:
             lines.extend(("", "| Metric | Value |", "| --- | --- |"))
             lines.extend(
-                f"| {key.replace('_', ' ').title()} | {_display_metric(value, key)} |"
+                f"| {_table_cell(key.replace('_', ' ').title())} | "
+                f"{_table_cell(_display_metric(value, key))} |"
                 for key, value in scalar_metrics.items()
             )
         if result.findings:
             lines.extend(("", "### Findings", ""))
-            lines.extend(f"- {finding}" for finding in result.findings)
+            lines.extend(f"- {_markdown_text(finding)}" for finding in result.findings)
     if report.assessment and report.assessment.deductions:
         lines.extend(("", "## Score deductions", ""))
         lines.extend(
-            f"- **-{item.points}** {item.reason} ({item.check})"
+            f"- **-{item.points}** {_markdown_text(item.reason)} " f"({_markdown_text(item.check)})"
             for item in report.assessment.deductions
         )
     return "\n".join(lines) + "\n"

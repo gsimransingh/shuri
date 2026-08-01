@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 REPORT_SCHEMA_VERSION = 2
 SCORING_POLICY_VERSION = 1

@@ -39,13 +39,15 @@ class DiagnosticRunner:
         start = perf_counter()
         try:
             result = self._registry.get(name)()
-        except Exception as error:  # Diagnostics must not make the CLI unusable.
+        except Exception:  # Diagnostics must not make the CLI unusable.
             result = CheckResult(
                 name=name,
                 title=name.replace("_", " ").title(),
                 status=CheckStatus.UNKNOWN,
                 summary="Diagnostic could not be completed.",
-                findings=(f"{type(error).__name__}: {error}",),
+                findings=(
+                    "The diagnostic failed unexpectedly; retry and report it if it persists.",
+                ),
             )
         duration_ms = (perf_counter() - start) * 1000
         return replace(result, duration_ms=round(duration_ms, 1))

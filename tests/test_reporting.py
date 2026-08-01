@@ -62,3 +62,24 @@ def test_reports_expose_incomplete_assessment_coverage() -> None:
     assert '"coverage_percent": 0.0' in rendered_json
     assert "0/1 checks completed" in render_markdown(report)
     assert "0/1" in render_html(report)
+
+
+def test_reporters_escape_collected_text() -> None:
+    result = CheckResult(
+        name="unsafe",
+        title="Unsafe | check",
+        status=CheckStatus.WARNING,
+        summary="<script>alert(1)</script> | next\nrow",
+        metrics={"unsafe_value": "<img src=x> | value"},
+        findings=("[click](javascript:alert(1))",),
+    )
+    report = Report.create((result,), "<host>")
+
+    markdown = render_markdown(report)
+    html = render_html(report)
+
+    assert "<script>" not in markdown
+    assert "Unsafe \\| check" in markdown
+    assert "next row" in markdown
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html

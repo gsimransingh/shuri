@@ -163,6 +163,14 @@ execution remains sequential to avoid adding concurrency complexity before it is
 **Exit criteria:** the same clean verification succeeds locally and in both CI environments, and a
 built wheel is tested before release.
 
+**Implemented locally 2026-08-01:** focused registry, runner-isolation, storage-validation,
+CLI-error, status-outcome, and reporter-escaping tests are in place. `python scripts/verify.py`
+runs the complete quality suite, builds a wheel, installs it with dependencies into a temporary
+clean environment, and smoke-tests the installed CLI. CI now uses that command on Windows and
+Ubuntu, with an additional opt-in read-only Windows integration check. Platform support and schema
+compatibility contracts are published. The remaining exit check is the first successful remote CI
+matrix run after these changes are pushed.
+
 ### Milestone 4 — capability expansion
 
 Only after the trust/reliability milestones, consider process-level CPU/memory attribution, disk
@@ -171,18 +179,12 @@ trend comparison between reports, and organization-specific scoring profiles.
 
 ## Immediate next steps
 
-1. Implement assessment coverage/confidence and report schema versioning.
-2. Harden and relocate saved-report storage, including migration from the current local cache.
-3. Add focused tests for those changes plus runner failure isolation.
-4. Add Windows CI and a reproducible local `verify` workflow.
-5. Define privacy/redaction behavior before encouraging report sharing.
-6. Improve event-log and connectivity accuracy, then measure scan latency before introducing
-   concurrency.
+1. Push the Milestone 3 changes and confirm both Windows and Ubuntu verification jobs pass.
+2. Treat any matrix-only failure as a release blocker and reproduce it locally where practical.
+3. After the matrix is green, choose the next patch version and complete the release checklist.
 
 ## Verification note
 
-This review inspected the source, project configuration, tests, documentation, Git ignore rules,
-and recent repository history. The automated suite could not be rerun in the current checkout
-because pytest, Ruff, Black, and mypy are not installed in either local virtual environment or the
-available Python 3.12 installation. This is an environment-readiness finding, not evidence that the
-existing tests fail.
+The original review found an incomplete local environment. The repository `venv` is now usable,
+and the complete Milestone 3 verifier passes locally on Windows with Python 3.12, including the
+clean wheel-install smoke test and the opt-in native integration check.

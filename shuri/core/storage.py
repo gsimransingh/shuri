@@ -12,6 +12,7 @@ from typing import Any
 
 from shuri.core.exceptions import ReportStorageError
 from shuri.models import CheckResult, CheckStatus, HealthAssessment, Report, ScoreDeduction
+from shuri.utils.constants import MAX_SAVED_REPORT_BYTES
 from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION
 
 
@@ -73,6 +74,10 @@ def load_latest_report() -> Report | None:
     if not path.is_file():
         return None
     try:
+        if path.stat().st_size > MAX_SAVED_REPORT_BYTES:
+            raise ReportStorageError(
+                "The saved report is too large to load safely. Run 'shuri doctor' again."
+            )
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ReportStorageError("Saved report must contain a JSON object.")
@@ -101,52 +106,121 @@ def report_from_dict(data: dict[str, Any]) -> Report:
     assessment_data = data.get("assessment")
     if assessment_data is not None and not isinstance(assessment_data, dict):
         raise ReportStorageError("Saved report has an invalid assessment.")
-    assessment = _assessment_from_dict(assessment_data) if assessment_data else None
-    return Report(
-        generated_at=datetime.fromisoformat(data["generated_at"]),
-        hostname=str(data["hostname"]),
+    if schema_version == 0 and assessment_data:
+        assessment_data = dict(assessment_data)
+        unknown_checks = tuple(
+            result.name for result in results if result.status is CheckStatus.UNKNOWN
+        )
+        completed_checks = len(results) - len(unknown_checks)
+        assessment_data.setdefault("completed_checks", completed_checks)
+        assessment_data.setdefault("unknown_checks", list(unknown_checks))
+        assessment_data.setdefault(
+            "coverage_percent",
+            round(completed_checks / len(results) * 100, 1) if results else 0.0,
+        )
+    assessment = _assessment_from_dict(assessment_data) if assessment_data is not None else None
+    try:
+        generated_at = datetime.fromisoformat(_string(data.get("generated_at"), "generated_at"))
+    except ValueError as error:
+        raise ReportStorageError("Saved report has an invalid generated_at.") from error
+    report = Report(
+        generated_at=generated_at,
+        hostname=_string(data.get("hostname"), "hostname"),
         results=results,
         assessment=assessment,
-        shuri_version=str(data.get("shuri_version", "0.1.0")),
+        shuri_version=_string(data.get("shuri_version", "0.1.0"), "shuri_version"),
         schema_version=REPORT_SCHEMA_VERSION,
         redacted=_boolean(data.get("redacted", False), "redacted"),
     )
+    if assessment is not None:
+        actual_unknown_checks = tuple(
+            result.name for result in results if result.status is CheckStatus.UNKNOWN
+        )
+        if (
+            assessment.completed_checks != len(results) - len(actual_unknown_checks)
+            or assessment.unknown_checks != actual_unknown_checks
+        ):
+            raise ReportStorageError("Saved report has inconsistent assessment coverage.")
+        expected_coverage = (
+            round(assessment.completed_checks / len(results) * 100, 1) if results else 0.0
+        )
+        if assessment.coverage_percent != expected_coverage:
+            raise ReportStorageError("Saved report has inconsistent coverage_percent.")
+    return report
 
 
 def _deduction_from_dict(data: dict[str, Any]) -> ScoreDeduction:
+    if not isinstance(data, dict):
+        raise ReportStorageError("Saved report contains an invalid score deduction.")
+    points = _integer(data.get("points"), "deduction points")
+    if points < 0:
+        raise ReportStorageError("Saved report has negative deduction points.")
     return ScoreDeduction(
-        reason=str(data["reason"]), points=int(data["points"]), check=str(data["check"])
+        reason=_string(data.get("reason"), "deduction reason"),
+        points=points,
+        check=_string(data.get("check"), "deduction check"),
     )
 
 
 def _result_from_dict(data: dict[str, Any]) -> CheckResult:
     if not isinstance(data, dict):
         raise ReportStorageError("Saved report contains an invalid diagnostic result.")
+    metrics = data.get("metrics", {})
+    findings = data.get("findings", [])
+    deductions = data.get("deductions", [])
+    if not isinstance(metrics, dict):
+        raise ReportStorageError("Saved report contains invalid diagnostic metrics.")
+    if not isinstance(findings, (list, tuple)):
+        raise ReportStorageError("Saved report contains invalid diagnostic findings.")
+    if not isinstance(deductions, (list, tuple)):
+        raise ReportStorageError("Saved report contains invalid diagnostic deductions.")
+    duration_ms = _number(data.get("duration_ms", 0), "duration_ms")
+    if duration_ms < 0:
+        raise ReportStorageError("Saved report has a negative diagnostic duration.")
+    try:
+        status = CheckStatus(_string(data.get("status"), "diagnostic status"))
+    except ValueError as error:
+        raise ReportStorageError("Saved report has an invalid diagnostic status.") from error
     return CheckResult(
-        name=str(data["name"]),
-        title=str(data["title"]),
-        status=CheckStatus(data["status"]),
-        summary=str(data["summary"]),
-        metrics=dict(data.get("metrics", {})),
-        findings=tuple(str(item) for item in data.get("findings", [])),
-        deductions=tuple(_deduction_from_dict(item) for item in data.get("deductions", [])),
-        duration_ms=float(data.get("duration_ms", 0)),
+        name=_string(data.get("name"), "diagnostic name"),
+        title=_string(data.get("title"), "diagnostic title"),
+        status=status,
+        summary=_string(data.get("summary"), "diagnostic summary"),
+        metrics=dict(metrics),
+        findings=tuple(_string(item, "diagnostic finding") for item in findings),
+        deductions=tuple(_deduction_from_dict(item) for item in deductions),
+        duration_ms=duration_ms,
     )
 
 
 def _assessment_from_dict(data: dict[str, Any]) -> HealthAssessment:
-    unknown_checks = tuple(str(item) for item in data.get("unknown_checks", []))
-    return HealthAssessment(
-        score=int(data["score"]),
-        label=str(data["label"]),
-        deductions=tuple(_deduction_from_dict(item) for item in data.get("deductions", [])),
-        completed_checks=_integer(data.get("completed_checks", 0), "completed_checks"),
+    unknown_data = data.get("unknown_checks", [])
+    deduction_data = data.get("deductions", [])
+    if not isinstance(unknown_data, (list, tuple)):
+        raise ReportStorageError("Saved report has invalid unknown_checks.")
+    if not isinstance(deduction_data, (list, tuple)):
+        raise ReportStorageError("Saved report has invalid assessment deductions.")
+    unknown_checks = tuple(_string(item, "unknown check") for item in unknown_data)
+    score = _integer(data.get("score"), "score")
+    coverage_percent = _number(data.get("coverage_percent", 100.0), "coverage_percent")
+    if not 0 <= score <= 100 or not 0 <= coverage_percent <= 100:
+        raise ReportStorageError("Saved report has an out-of-range assessment value.")
+    completed_checks = _integer(data.get("completed_checks", 0), "completed_checks")
+    policy_version = _integer(data.get("policy_version", SCORING_POLICY_VERSION), "policy_version")
+    if completed_checks < 0 or policy_version < 1:
+        raise ReportStorageError("Saved report has an out-of-range assessment value.")
+    assessment = HealthAssessment(
+        score=score,
+        label=_string(data.get("label"), "assessment label"),
+        deductions=tuple(_deduction_from_dict(item) for item in deduction_data),
+        completed_checks=completed_checks,
         unknown_checks=unknown_checks,
-        coverage_percent=float(data.get("coverage_percent", 100.0)),
-        policy_version=_integer(
-            data.get("policy_version", SCORING_POLICY_VERSION), "policy_version"
-        ),
+        coverage_percent=coverage_percent,
+        policy_version=policy_version,
     )
+    if assessment.score != max(0, 100 - assessment.total_deductions):
+        raise ReportStorageError("Saved report has an inconsistent assessment score.")
+    return assessment
 
 
 def _integer(value: object, field_name: str) -> int:
@@ -159,3 +233,15 @@ def _boolean(value: object, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise ReportStorageError(f"Saved report has an invalid {field_name}.")
     return value
+
+
+def _string(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise ReportStorageError(f"Saved report has an invalid {field_name}.")
+    return value
+
+
+def _number(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ReportStorageError(f"Saved report has an invalid {field_name}.")
+    return float(value)

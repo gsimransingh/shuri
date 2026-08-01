@@ -38,6 +38,29 @@ def test_legacy_report_without_schema_version_is_migrated() -> None:
     assert restored.schema_version == REPORT_SCHEMA_VERSION
 
 
+def test_legacy_assessment_coverage_is_derived() -> None:
+    restored = report_from_dict(
+        {
+            "generated_at": "2026-08-01T00:00:00+00:00",
+            "hostname": "workstation-01",
+            "results": [
+                {
+                    "name": "updates",
+                    "title": "Updates",
+                    "status": "unknown",
+                    "summary": "Unavailable",
+                }
+            ],
+            "assessment": {"score": 100, "label": "Incomplete", "deductions": []},
+        }
+    )
+
+    assert restored.assessment is not None
+    assert restored.assessment.completed_checks == 0
+    assert restored.assessment.unknown_checks == ("updates",)
+    assert restored.assessment.coverage_percent == 0.0
+
+
 def test_future_report_schema_is_rejected() -> None:
     with pytest.raises(ReportStorageError, match="not supported"):
         report_from_dict({"schema_version": 999, "results": []})
@@ -77,3 +100,38 @@ def test_legacy_report_is_copied_to_stable_location(
 
     assert restored == report
     assert target.is_file()
+
+
+def test_corrupt_saved_report_has_recovery_guidance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "latest-report.json"
+    target.write_text("{not-json", encoding="utf-8")
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    monkeypatch.setattr(storage, "legacy_report_path", lambda: tmp_path / "legacy.json")
+
+    with pytest.raises(ReportStorageError, match="Run 'shuri doctor' again"):
+        storage.load_latest_report()
+
+
+def test_oversized_saved_report_is_rejected_before_parsing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "latest-report.json"
+    target.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(storage, "MAX_SAVED_REPORT_BYTES", 1)
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    monkeypatch.setattr(storage, "legacy_report_path", lambda: tmp_path / "legacy.json")
+
+    with pytest.raises(ReportStorageError, match="too large"):
+        storage.load_latest_report()
+
+
+def test_nested_report_field_types_are_validated() -> None:
+    report = Report.create(
+        (CheckResult("cpu", "CPU", CheckStatus.PASS, "Healthy"),), "workstation-01"
+    ).to_dict()
+    report["results"][0]["findings"] = "not-a-list"
+
+    with pytest.raises(ReportStorageError, match="findings"):
+        report_from_dict(report)

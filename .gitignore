@@ -12,4 +12,4 @@ build/
 reports/
 outputs/
 .shuri/
-shuri-report.*
+shuri-report*

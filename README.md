@@ -53,12 +53,14 @@ installations on the workstation.
 
 For contributors:
 
-```powershell
+```text
 python -m pip install -e ".[dev]"
-pytest
-ruff check .
-black --check .
+python scripts/verify.py
 ```
+
+The verification command runs tests, linting, formatting, strict typing, builds the wheel, installs
+it into a temporary clean environment, and smoke-tests the installed `shuri` command. Package
+installation requires network access when dependencies are not already available in pip's cache.
 
 ## Usage
 
@@ -82,6 +84,8 @@ Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
 Windows capacity, update, and antivirus checks use native Windows data when available;
 an unavailable data source is reported as unknown rather than scored as a failure.
+See the [platform support matrix](docs/support-matrix.md) for the exact per-check contract and the
+[report-schema policy](docs/report-schema.md) for stored-report compatibility.
 
 Full scans show live progress, and reports include the duration of each diagnostic. The latest
 local report is written atomically to Shuri's per-user application-state directory, so
@@ -122,12 +126,13 @@ very low system-drive space subtracts 15 points, and a pending reboot subtracts
 ## Project layout
 
 ```text
-shuri/
-├── checks/       # small, independent diagnostics
-├── core/         # check registry, runner, and scoring
-├── models/       # typed report data
-├── reporters/    # terminal, JSON, HTML, and Markdown output
-└── utils/        # platform and filesystem helpers
+├── shuri/
+│   ├── checks/       # small, independent diagnostics
+│   ├── core/         # check registry, runner, and scoring
+│   ├── models/       # typed report data
+│   ├── reporters/    # terminal, JSON, HTML, and Markdown output
+│   └── utils/        # platform and filesystem helpers
+└── scripts/          # contributor and release verification
 ```
 
 ## License
