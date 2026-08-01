@@ -39,6 +39,8 @@ _TEMPLATE = """<!doctype html>
     <p class="muted">Host: <strong>{{ report.hostname }}</strong></p>
     <p class="muted">Generated: {{ report.generated_at.isoformat() }}
       · Shuri {{ report.shuri_version }}</p>
+    <p class="muted">Scan duration: {{ "%.1f" | format(report.duration_ms / 1000) }}s
+      · Redacted: {{ "Yes" if report.redacted else "No" }}</p>
   </header>
   {% if report.assessment %}
   <section class="card">
@@ -64,12 +66,12 @@ _TEMPLATE = """<!doctype html>
   <section class="card">
     <h2>Diagnostics</h2>
     <table>
-      <thead><tr><th>Check</th><th>Status</th><th>Summary</th></tr></thead>
+      <thead><tr><th>Check</th><th>Status</th><th>Summary</th><th>Duration</th></tr></thead>
       <tbody>
         {% for result in report.results %}
         <tr><td>{{ result.title }}</td>
           <td class="tag {{ result.status.value }}">{{ result.status.value }}</td>
-          <td>{{ result.summary }}</td></tr>
+          <td>{{ result.summary }}</td><td>{{ "%.0f" | format(result.duration_ms) }} ms</td></tr>
         {% endfor %}
       </tbody>
     </table>

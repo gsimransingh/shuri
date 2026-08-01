@@ -67,6 +67,7 @@ shuri scan                         # all diagnostics
 shuri doctor                       # diagnostics plus health score
 shuri doctor -f html -o report.html
 shuri doctor -f json -o report.json
+shuri doctor -f json --redact -o report-to-share.json
 shuri doctor -f markdown
 shuri cpu                          # one diagnostic
 shuri network
@@ -81,6 +82,28 @@ Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
 Windows capacity, update, and antivirus checks use native Windows data when available;
 an unavailable data source is reported as unknown rather than scored as a failure.
+
+Full scans show live progress, and reports include the duration of each diagnostic. The latest
+local report is written atomically to Shuri's per-user application-state directory, so
+`shuri report` works consistently from any folder. A legacy report in the checkout's `.shuri`
+folder is copied to the new location the first time it is loaded.
+
+## Network probes
+
+DNS resolution and TCP connectivity are reported as separate probes. A failed probe is evidence
+about that target, not a definitive claim that the internet is unavailable. Organizations can
+provide their own targets with `SHURI_DNS_PROBE_HOST`, `SHURI_CONNECTIVITY_HOST`, and
+`SHURI_CONNECTIVITY_PORT` environment variables. The port must be between 1 and 65535.
+
+## Privacy and sharing
+
+Local saved reports remain complete so support diagnostics retain their evidence. Before sharing
+an export, pass `--redact`. Redacted exports replace the report and metric hostnames, gateways,
+probe targets, usernames, and MAC addresses, and remove collected IP-address and DNS-server lists.
+They retain health status, timings, hardware facts, deductions, and non-identifying service and
+security state. Shuri does not collect file contents, passwords, browser history, or command-line
+contents. Review every report before sharing it because organization-specific check output may
+still be sensitive.
 
 ## Health score
 

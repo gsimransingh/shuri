@@ -142,6 +142,13 @@ and unsupported saved reports produce an actionable message; scoring policy has 
 **Exit criteria:** commands behave consistently from any folder, failures explain the next action,
 and exported reports have an intentional privacy posture.
 
+**Completed 2026-08-01:** latest-report storage now uses an atomic per-user path with legacy
+migration; command failures are classified without exposing raw command details; scans show
+progress and per-check duration; DNS and TCP probes are separate and configurable; event-log data
+is structured and reports truncation; and exports support explicit share-safe redaction. A real
+Windows scan completed all 10 checks in 21.1 seconds. Windows Update dominated at 13.1 seconds, so
+execution remains sequential to avoid adding concurrency complexity before it is necessary.
+
 ### Milestone 3 — test and release confidence
 
 - Add unit tests for registry, runner, storage, CLI validation, all status branches, and escaping.

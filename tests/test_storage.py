@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
+from shuri.core import storage
 from shuri.core.exceptions import ReportStorageError
 from shuri.core.scoring import assess_health
 from shuri.core.storage import report_from_dict
@@ -42,3 +46,34 @@ def test_future_report_schema_is_rejected() -> None:
 def test_invalid_results_collection_is_rejected() -> None:
     with pytest.raises(ReportStorageError, match="results"):
         report_from_dict({"schema_version": REPORT_SCHEMA_VERSION, "results": {}})
+
+
+def test_latest_report_is_saved_atomically_to_stable_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "state" / "latest-report.json"
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    report = Report.create((), "workstation-01")
+
+    saved = storage.save_latest_report(report)
+
+    assert saved == target
+    assert storage.load_latest_report() == report
+    assert not tuple(target.parent.glob("*.tmp"))
+
+
+def test_legacy_report_is_copied_to_stable_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "new" / "latest-report.json"
+    legacy = tmp_path / "old" / "latest-report.json"
+    report = Report.create((), "workstation-01")
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(json.dumps(report.to_dict()), encoding="utf-8")
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    monkeypatch.setattr(storage, "legacy_report_path", lambda: legacy)
+
+    restored = storage.load_latest_report()
+
+    assert restored == report
+    assert target.is_file()

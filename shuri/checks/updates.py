@@ -6,7 +6,7 @@ import json
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import is_windows, run_powershell
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_powershell
 
 
 def _registry_key_exists(path: str) -> bool:
@@ -51,25 +51,25 @@ def pending_reboot() -> bool:
     )
 
 
-def available_update_count() -> int | None:
-    """Return available Windows Update count, or ``None`` if the agent cannot be queried."""
+def available_update_count() -> tuple[int | None, CommandResult | None]:
+    """Return available Windows Update count and any command failure."""
     if not is_windows():
-        return None
-    output = run_powershell(
+        return None, None
+    result = run_powershell(
         "$session = New-Object -ComObject Microsoft.Update.Session; "
         "$searcher = $session.CreateUpdateSearcher(); "
         "$result = $searcher.Search('IsInstalled=0 and IsHidden=0'); "
         "[PSCustomObject]@{ PendingUpdates = $result.Updates.Count } | ConvertTo-Json -Compress",
         timeout=20,
     )
-    if output is None:
-        return None
+    if not result.succeeded:
+        return None, result
     try:
-        data = json.loads(output)
+        data = json.loads(result.output)
         count = data.get("PendingUpdates") if isinstance(data, dict) else None
-        return int(count) if isinstance(count, int | float | str) else None
+        return (int(count) if isinstance(count, int | float | str) else None), None
     except (TypeError, ValueError, json.JSONDecodeError):
-        return None
+        return None, None
 
 
 def check_updates() -> CheckResult:
@@ -82,7 +82,7 @@ def check_updates() -> CheckResult:
             summary="Windows Update diagnostics are not available on this platform.",
         )
     reboot_pending = pending_reboot()
-    update_count = available_update_count()
+    update_count, update_failure = available_update_count()
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
@@ -96,7 +96,11 @@ def check_updates() -> CheckResult:
         )
     if update_count is None:
         status = CheckStatus.UNKNOWN if status is CheckStatus.PASS else status
-        findings.append("Windows Update availability could not be queried.")
+        findings.append(
+            command_failure_message("Windows Update availability", update_failure)
+            if update_failure is not None
+            else "Windows Update availability returned invalid data."
+        )
     elif update_count > 0:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append(f"{update_count} Windows update(s) are available.")

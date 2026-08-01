@@ -1,14 +1,30 @@
-"""A deliberately small Windows event-log health summary."""
+"""Structured Windows event-log health summary."""
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import is_windows, run_command
+from shuri.utils.platform import command_failure_message, is_windows, run_powershell
 
-_QUERY = (
-    "*[System[(Level=1 or Level=2 or Level=3) and TimeCreated[timediff(@SystemTime) <= 86400000]]]"
-)
+_MAX_EVENTS = 50
+
+
+def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
+    """Count numeric event levels from PowerShell JSON and expose truncation."""
+    try:
+        parsed: Any = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    entries = parsed if isinstance(parsed, list) else [parsed]
+    if not all(isinstance(entry, dict) for entry in entries):
+        return None
+    levels = [entry.get("Level") for entry in entries]
+    truncated = len(levels) > _MAX_EVENTS
+    levels = levels[:_MAX_EVENTS]
+    return levels.count(1), levels.count(2), levels.count(3), truncated
 
 
 def check_event_logs() -> CheckResult:
@@ -20,19 +36,33 @@ def check_event_logs() -> CheckResult:
             status=CheckStatus.UNKNOWN,
             summary="Windows event-log diagnostics are not available on this platform.",
         )
-    output = run_command(
-        ("wevtutil", "qe", "System", f"/q:{_QUERY}", "/c:50", "/f:text"), timeout=8
+    script = (
+        "$ErrorActionPreference = 'Stop'; try { "
+        "$events = @(Get-WinEvent -FilterHashtable "
+        "@{LogName='System'; Level=1,2,3; StartTime=(Get-Date).AddHours(-24)} "
+        f"-MaxEvents {_MAX_EVENTS + 1}) "
+        "} catch { if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') "
+        "{ $events = @() } else { throw } }; "
+        "$selected = @($events | Select-Object Level); "
+        "ConvertTo-Json -InputObject $selected -Compress"
     )
-    if output is None:
+    result = run_powershell(script, timeout=8)
+    if not result.succeeded:
         return CheckResult(
             name="eventlogs",
             title="Event Logs",
             status=CheckStatus.UNKNOWN,
-            summary="The Windows System event log could not be queried.",
+            summary=command_failure_message("Windows System event log", result),
         )
-    critical = output.count("Level: Critical")
-    errors = output.count("Level: Error")
-    warnings = output.count("Level: Warning")
+    counts = parse_event_levels(result.output)
+    if counts is None:
+        return CheckResult(
+            name="eventlogs",
+            title="Event Logs",
+            status=CheckStatus.UNKNOWN,
+            summary="The Windows System event log returned invalid structured data.",
+        )
+    critical, errors, warnings, truncated = counts
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
@@ -56,12 +86,23 @@ def check_event_logs() -> CheckResult:
                 "eventlogs",
             )
         )
+    if truncated:
+        findings.append(
+            f"More than {_MAX_EVENTS} matching events exist; counts show the newest {_MAX_EVENTS}."
+        )
     return CheckResult(
         name="eventlogs",
         title="Event Logs",
         status=status,
         summary=f"Last 24 hours: {critical} critical, {errors} errors, {warnings} warnings.",
-        metrics={"critical": critical, "errors": errors, "warnings": warnings, "window_hours": 24},
+        metrics={
+            "critical": critical,
+            "errors": errors,
+            "warnings": warnings,
+            "window_hours": 24,
+            "truncated": truncated,
+            "maximum_events": _MAX_EVENTS,
+        },
         findings=tuple(findings),
         deductions=tuple(deductions),
     )

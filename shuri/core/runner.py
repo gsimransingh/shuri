@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from time import perf_counter
 
 from shuri.core.registry import DiagnosticRegistry
 from shuri.models import CheckResult, CheckStatus
+
+type ProgressCallback = Callable[[str, CheckResult | None, int, int], None]
 
 
 class DiagnosticRunner:
@@ -15,10 +18,22 @@ class DiagnosticRunner:
     def __init__(self, registry: DiagnosticRegistry) -> None:
         self._registry = registry
 
-    def run(self, names: tuple[str, ...] | None = None) -> tuple[CheckResult, ...]:
+    def run(
+        self,
+        names: tuple[str, ...] | None = None,
+        progress: ProgressCallback | None = None,
+    ) -> tuple[CheckResult, ...]:
         """Run selected diagnostics, or every registered diagnostic in order."""
         selected = names or self._registry.names()
-        return tuple(self._run_one(name) for name in selected)
+        results: list[CheckResult] = []
+        for index, name in enumerate(selected, start=1):
+            if progress:
+                progress(name, None, index, len(selected))
+            result = self._run_one(name)
+            results.append(result)
+            if progress:
+                progress(name, result, index, len(selected))
+        return tuple(results)
 
     def _run_one(self, name: str) -> CheckResult:
         start = perf_counter()

@@ -11,7 +11,7 @@ import psutil
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import is_windows, run_command
+from shuri.utils.platform import command_failure_message, is_windows, run_command
 
 
 def parse_battery_report(report: str) -> tuple[int | None, int | None]:
@@ -26,28 +26,36 @@ def _capacity_from_report(report: str, label: str) -> int | None:
     return int(match.group(1).replace(",", "")) if match else None
 
 
-def _battery_health() -> tuple[int | None, int | None, float | None]:
+def _battery_health() -> tuple[int | None, int | None, float | None, str | None]:
     """Return Windows battery design capacity, full-charge capacity, and health percentage."""
     if not is_windows():
-        return None, None, None
+        return None, None, None, None
     report_path = Path(tempfile.gettempdir()) / f"shuri-battery-{uuid4().hex}.html"
     try:
-        result = run_command(
+        command_result = run_command(
             ("powercfg", "/batteryreport", "/output", str(report_path)), timeout=10
         )
-        if result is None or not report_path.is_file():
-            return None, None, None
+        if not command_result.succeeded:
+            return (
+                None,
+                None,
+                None,
+                command_failure_message("Windows battery capacity query", command_result),
+            )
+        if not report_path.is_file():
+            return None, None, None, "Windows battery capacity query returned no report."
         design_capacity, full_charge_capacity = parse_battery_report(
             report_path.read_text(encoding="utf-8", errors="replace")
         )
     finally:
         report_path.unlink(missing_ok=True)
     if not design_capacity or full_charge_capacity is None:
-        return design_capacity, full_charge_capacity, None
+        return design_capacity, full_charge_capacity, None, None
     return (
         design_capacity,
         full_charge_capacity,
         round(full_charge_capacity / design_capacity * 100, 1),
+        None,
     )
 
 
@@ -72,7 +80,9 @@ def check_battery() -> CheckResult:
                 "Battery charge is below 10%", DEFAULT_POLICY.low_battery_charge_points, "battery"
             )
         )
-    design_capacity, full_charge_capacity, health_percent = _battery_health()
+    design_capacity, full_charge_capacity, health_percent, capacity_error = _battery_health()
+    if capacity_error:
+        findings.append(capacity_error)
     if (
         health_percent is not None
         and health_percent < DEFAULT_POLICY.critical_battery_health_percent

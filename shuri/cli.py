@@ -11,10 +11,17 @@ import typer
 from shuri import __version__
 from shuri.core import DiagnosticRunner, assess_health, default_registry
 from shuri.core.exceptions import ReportStorageError
+from shuri.core.privacy import redact_report
 from shuri.core.storage import load_latest_report, save_latest_report
 from shuri.models import Report
 from shuri.reporters import render_html, render_json, render_markdown
-from shuri.reporters.terminal import show_check, show_error, show_exported, show_report
+from shuri.reporters.terminal import (
+    scan_progress,
+    show_check,
+    show_error,
+    show_exported,
+    show_report,
+)
 from shuri.utils.helpers import default_report_path
 
 app = typer.Typer(
@@ -34,10 +41,16 @@ ReportFormat = Annotated[
 
 
 def _build_report(with_assessment: bool, names: tuple[str, ...] | None = None) -> Report:
-    results = DiagnosticRunner(default_registry()).run(names)
+    registry = default_registry()
+    with scan_progress() as progress:
+        results = DiagnosticRunner(registry).run(names, progress=progress)
     assessment = assess_health(results) if with_assessment else None
     report = Report.create(results=results, hostname=socket.gethostname(), assessment=assessment)
-    save_latest_report(report)
+    try:
+        save_latest_report(report)
+    except ReportStorageError as error:
+        show_error(str(error))
+        raise typer.Exit(code=1) from error
     return report
 
 
@@ -70,10 +83,13 @@ def _render(report: Report, report_format: str) -> str:
         ) from error
 
 
-def _export(report: Report, report_format: str, output: Path | None) -> Path:
+def _export(
+    report: Report, report_format: str, output: Path | None, *, redact: bool = False
+) -> Path:
     path = output or default_report_path(report_format)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_render(report, report_format), encoding="utf-8")
+    exported_report = redact_report(report) if redact else report
+    path.write_text(_render(exported_report, report_format), encoding="utf-8")
     return path
 
 
@@ -91,15 +107,21 @@ def doctor(
     json_format: Annotated[bool, typer.Option("--json", help="Export a JSON report.")] = False,
     markdown: Annotated[bool, typer.Option("--markdown", help="Export a Markdown report.")] = False,
     output: OutputPath = None,
+    redact: Annotated[
+        bool,
+        typer.Option("--redact", help="Remove workstation and network identifiers from export."),
+    ] = False,
 ) -> None:
     """Run all diagnostics, calculate health, and optionally export a report."""
     report_format = _selected_format(report_format, html, json_format, markdown)
     if output and report_format is None:
         raise typer.BadParameter("--output requires -f/--format, --html, --json, or --markdown.")
+    if redact and report_format is None:
+        raise typer.BadParameter("--redact requires an exported report format.")
     report = _build_report(with_assessment=True)
     show_report(report)
     if report_format:
-        show_exported(_export(report, report_format, output))
+        show_exported(_export(report, report_format, output, redact=redact))
 
 
 @app.command()
@@ -108,6 +130,10 @@ def report(
         str, typer.Option("--format", "-f", help="html, json, or markdown")
     ] = "json",
     output: OutputPath = None,
+    redact: Annotated[
+        bool,
+        typer.Option("--redact", help="Remove workstation and network identifiers from export."),
+    ] = False,
 ) -> None:
     """Export the most recently saved Shuri assessment."""
     try:
@@ -118,7 +144,7 @@ def report(
     if saved is None:
         show_error("No saved report exists. Run 'shuri doctor' or 'shuri scan' first.")
         raise typer.Exit(code=1)
-    show_exported(_export(saved, report_format.lower(), output))
+    show_exported(_export(saved, report_format.lower(), output, redact=redact))
 
 
 def _single_check(name: str) -> None:

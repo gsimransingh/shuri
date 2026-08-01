@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import is_windows, run_command
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_command
 
 _SERVICES = {
     "wuauserv": "Windows Update",
@@ -17,11 +17,11 @@ _SERVICES = {
 _CRITICAL_SERVICES = {"eventlog", "WinDefend", "Dhcp", "Dnscache"}
 
 
-def _service_state(name: str) -> str:
-    output = run_command(("sc", "query", name))
-    if output is None:
-        return "unavailable"
-    return "running" if "RUNNING" in output else "stopped"
+def _service_state(name: str) -> tuple[str, CommandResult]:
+    result = run_command(("sc", "query", name))
+    if not result.succeeded:
+        return "unavailable", result
+    return ("running" if "RUNNING" in result.output else "stopped"), result
 
 
 def check_services() -> CheckResult:
@@ -33,14 +33,17 @@ def check_services() -> CheckResult:
             status=CheckStatus.UNKNOWN,
             summary="Windows service diagnostics are not available on this platform.",
         )
-    states = {name: _service_state(name) for name in _SERVICES}
+    queries = {name: _service_state(name) for name in _SERVICES}
+    states = {name: state for name, (state, _) in queries.items()}
     unavailable = all(state == "unavailable" for state in states.values())
     if unavailable:
         return CheckResult(
             name="services",
             title="Windows Services",
             status=CheckStatus.UNKNOWN,
-            summary="Windows services could not be queried.",
+            summary=command_failure_message(
+                "Windows service status", next(iter(queries.values()))[1]
+            ),
             metrics={"services": states},
         )
     stopped_critical = [

@@ -74,6 +74,12 @@ class Report:
     assessment: HealthAssessment | None = None
     shuri_version: str = __version__
     schema_version: int = REPORT_SCHEMA_VERSION
+    redacted: bool = False
+
+    @property
+    def duration_ms(self) -> float:
+        """Return cumulative diagnostic execution time."""
+        return round(sum(result.duration_ms for result in self.results), 1)
 
     @classmethod
     def create(

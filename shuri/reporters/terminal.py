@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
 
@@ -48,7 +51,8 @@ def show_check(result: CheckResult, console: Console | None = None) -> None:
     table = Table(title=result.title, show_header=True, header_style="bold bright_blue")
     table.add_column("Status", width=12)
     table.add_column("Summary")
-    table.add_row(_status_text(result.status), result.summary)
+    table.add_column("Duration", justify="right")
+    table.add_row(_status_text(result.status), result.summary, f"{result.duration_ms:.0f} ms")
     target.print(table)
     if result.metrics:
         metrics = Table(show_header=True, header_style="bold")
@@ -76,19 +80,32 @@ def show_report(report: Report, console: Console | None = None) -> None:
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
                 f"Coverage: {assessment.completed_checks}/{len(report.results)} checks "
                 f"({assessment.coverage_percent:.1f}%)\n"
+                f"Scan duration: {report.duration_ms / 1000:.1f}s\n"
                 f"Host: {report.hostname}   •   {generated}",
                 title=title,
                 border_style="bright_blue",
             )
         )
     else:
-        target.print(Panel.fit(f"Host: {report.hostname}", title=title, border_style="bright_blue"))
+        target.print(
+            Panel.fit(
+                f"Host: {report.hostname}\nScan duration: {report.duration_ms / 1000:.1f}s",
+                title=title,
+                border_style="bright_blue",
+            )
+        )
     table = Table(show_header=True, header_style="bold bright_blue")
     table.add_column("Check", style="bold")
     table.add_column("Status", width=12)
     table.add_column("Summary")
+    table.add_column("Duration", justify="right")
     for result in report.results:
-        table.add_row(result.title, _status_text(result.status), result.summary)
+        table.add_row(
+            result.title,
+            _status_text(result.status),
+            result.summary,
+            f"{result.duration_ms:.0f} ms",
+        )
     target.print(table)
     action_items = [finding for result in report.results for finding in result.findings]
     if action_items:
@@ -120,3 +137,28 @@ def show_exported(path: Path, console: Console | None = None) -> None:
 def show_error(message: str, console: Console | None = None) -> None:
     """Render an error consistently without leaking presentation into checks."""
     (console or _CONSOLE).print(f"[red]{message}[/red]")
+
+
+@contextmanager
+def scan_progress(
+    console: Console | None = None,
+) -> Iterator[Callable[[str, CheckResult | None, int, int], None]]:
+    """Show one compact live progress line while diagnostics execute."""
+    target = console or _CONSOLE
+    progress = Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=target, transient=True
+    )
+    task_id = progress.add_task("Preparing diagnostics")
+
+    def update(name: str, result: CheckResult | None, index: int, total: int) -> None:
+        if result is None:
+            progress.update(task_id, description=f"[{index}/{total}] Running {name}")
+        else:
+            duration = f"{result.duration_ms:.0f} ms"
+            progress.update(
+                task_id,
+                description=f"[{index}/{total}] {result.title} finished in {duration}",
+            )
+
+    with progress:
+        yield update

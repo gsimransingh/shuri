@@ -8,34 +8,34 @@ from typing import Any
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import is_windows, run_powershell
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_powershell
 
 
-def _defender_status() -> dict[str, Any] | None:
-    output = run_powershell(
+def _defender_status() -> tuple[dict[str, Any] | None, CommandResult]:
+    result = run_powershell(
         "Get-MpComputerStatus | Select-Object "
         "AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,"
         "AntivirusSignatureLastUpdated | ConvertTo-Json -Compress"
     )
-    if output is None:
-        return None
+    if not result.succeeded:
+        return None, result
     try:
-        data = json.loads(output)
+        data = json.loads(result.output)
     except json.JSONDecodeError:
-        return None
-    return data if isinstance(data, dict) else None
+        return None, result
+    return (data if isinstance(data, dict) else None), result
 
 
 def _third_party_antivirus_products() -> tuple[str, ...]:
     """Return registered non-Defender antivirus products when Windows exposes them."""
-    output = run_powershell(
+    result = run_powershell(
         "Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct | "
         "Select-Object DisplayName | ConvertTo-Json -Compress"
     )
-    if output is None:
+    if not result.succeeded:
         return ()
     try:
-        data = json.loads(output)
+        data = json.loads(result.output)
     except json.JSONDecodeError:
         return ()
     entries = data if isinstance(data, list) else [data]
@@ -70,7 +70,7 @@ def check_antivirus() -> CheckResult:
             status=CheckStatus.UNKNOWN,
             summary="Microsoft Defender diagnostics are only available on Windows.",
         )
-    status_data = _defender_status()
+    status_data, defender_query = _defender_status()
     if status_data is None:
         third_party_products = _third_party_antivirus_products()
         if third_party_products:
@@ -88,7 +88,11 @@ def check_antivirus() -> CheckResult:
             name="antivirus",
             title="Antivirus",
             status=CheckStatus.UNKNOWN,
-            summary="Microsoft Defender status could not be queried.",
+            summary=(
+                command_failure_message("Microsoft Defender status", defender_query)
+                if defender_query.failure is not None
+                else "Microsoft Defender status returned invalid data."
+            ),
         )
     enabled = bool(status_data.get("AMServiceEnabled") and status_data.get("AntivirusEnabled"))
     real_time = bool(status_data.get("RealTimeProtectionEnabled"))

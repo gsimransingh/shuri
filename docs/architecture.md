@@ -13,3 +13,8 @@ To add a check, implement a no-argument function returning `CheckResult`, then
 add it to `default_registry()` in `shuri.core.registry`. Keep platform-specific
 calls behind `shuri.utils.platform` and return `UNKNOWN` when the platform does
 not support a check.
+
+Platform commands return a structured `CommandResult`. Checks translate its stable failure
+category into safe, actionable language with `command_failure_message`; raw commands, stdout, and
+stderr are not copied into normal findings. Exports pass through `shuri.core.privacy` only when the
+user explicitly requests redaction, leaving the complete locally saved report unchanged.

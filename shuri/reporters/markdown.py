@@ -23,6 +23,8 @@ def render_markdown(report: Report) -> str:
         "",
         f"- **Host:** {report.hostname}",
         f"- **Generated:** {report.generated_at.isoformat()}",
+        f"- **Scan duration:** {report.duration_ms / 1000:.1f}s",
+        f"- **Redacted:** {'Yes' if report.redacted else 'No'}",
     ]
     if report.assessment:
         lines.extend(
@@ -37,9 +39,17 @@ def render_markdown(report: Report) -> str:
         )
     else:
         lines.append("")
-    lines.extend(("## Diagnostics", "", "| Check | Status | Summary |", "| --- | --- | --- |"))
     lines.extend(
-        f"| {result.title} | {result.status.value.upper()} | {result.summary} |"
+        (
+            "## Diagnostics",
+            "",
+            "| Check | Status | Summary | Duration |",
+            "| --- | --- | --- | ---: |",
+        )
+    )
+    lines.extend(
+        f"| {result.title} | {result.status.value.upper()} | {result.summary} | "
+        f"{result.duration_ms:.0f} ms |"
         for result in report.results
     )
     for result in report.results:
