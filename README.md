@@ -88,10 +88,13 @@ shuri doctor -f json -o report.json
 shuri doctor -f json --redact -o report-to-share.json
 shuri doctor -f markdown
 shuri cpu                          # one diagnostic
+shuri disk show                    # every detected filesystem
 shuri drives                       # physical-drive reliability
 shuri drives show                  # detailed physical-drive evidence
 shuri network
 shuri network show                 # adapters, probes, and configuration
+shuri services show                # monitored service states
+shuri antivirus show               # Microsoft Defender settings
 shuri eventlogs show               # recent event metadata
 shuri doctor show                  # expanded evidence for a full assessment
 shuri system-info                  # OS and workstation information
@@ -104,6 +107,26 @@ shuri version
 ```
 
 From a source checkout, `python -m shuri system-info` runs the local code directly.
+
+### Concise and detailed views
+
+Diagnostic commands use progressive disclosure. Run the command by itself for a quick health
+overview, then add `show` when troubleshooting requires the collected evidence:
+
+| Command | Detailed evidence |
+| --- | --- |
+| `shuri disk show` | Detected filesystems, capacity, free space, and usage |
+| `shuri drives show` | Physical-drive model, type, bus, health, size, temperature, and wear |
+| `shuri network show` | DNS/TCP probes and detected adapters with state and addresses |
+| `shuri services show` | The important Windows services Shuri monitors and their current state |
+| `shuri antivirus show` | Individual Microsoft Defender protection settings |
+| `shuri eventlogs show` | Up to 50 recent System events with time, severity, ID, and provider |
+| `shuri doctor show` | Structured evidence from every check in one assessment |
+
+Event message bodies are deliberately excluded because they can contain usernames, file paths, and
+other workstation-specific data. `services show` covers Shuri's monitored service set rather than
+inventorying every installed Windows service. JSON exports remain the complete machine-readable
+representation of the evidence Shuri collects.
 
 Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
@@ -140,11 +163,6 @@ security state. Shuri does not collect file contents, passwords, browser history
 contents. Physical-drive reports include model, type, capacity, and reliability state but do not
 request serial numbers. Review every report before sharing it because organization-specific check
 output may still be sensitive.
-
-Individual diagnostic commands show a concise overview by default. Add the `show` action—for
-example, `shuri network show`—to display collected evidence in readable tables. `shuri doctor show`
-expands structured evidence across a complete assessment. JSON remains the full machine-readable
-representation.
 
 ## Health score
 
