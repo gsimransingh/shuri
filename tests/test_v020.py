@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from typer.testing import CliRunner
 
@@ -31,6 +33,14 @@ def test_battery_report_extracts_capacities() -> None:
 def test_signature_age_recognises_parseable_and_invalid_dates() -> None:
     assert _signature_age_days("2020-01-01T00:00:00Z") is not None
     assert _signature_age_days("not-a-date") is None
+
+
+def test_signature_age_recognises_windows_powershell_json_dates() -> None:
+    three_days_ago = datetime.now(UTC) - timedelta(days=3)
+    timestamp_ms = int(three_days_ago.timestamp() * 1000)
+
+    assert _signature_age_days(f"/Date({timestamp_ms})/") == 3
+    assert _signature_age_days(f"/Date({timestamp_ms}+0530)/") == 3
 
 
 def test_available_updates_produce_transparent_deduction(monkeypatch: object) -> None:

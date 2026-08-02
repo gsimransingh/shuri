@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -52,10 +53,17 @@ def _signature_age_days(value: object) -> int | None:
     """Return whole days since a Defender signature timestamp, when parseable."""
     if not isinstance(value, str):
         return None
-    try:
-        updated = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    powershell_date = re.fullmatch(r"/Date\((-?\d+)(?:[+-]\d{4})?\)/", value)
+    if powershell_date:
+        try:
+            updated = datetime.fromtimestamp(int(powershell_date.group(1)) / 1000, tz=UTC)
+        except (OverflowError, OSError, ValueError):
+            return None
+    else:
+        try:
+            updated = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
     if updated.tzinfo is None:
         updated = updated.replace(tzinfo=UTC)
     return max(0, (datetime.now(UTC) - updated).days)
