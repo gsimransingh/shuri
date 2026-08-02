@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+CONSTRAINTS = ROOT / "requirements" / "constraints-py312.txt"
 
 
 def _run(label: str, command: tuple[str, ...], *, cwd: Path = ROOT) -> None:
@@ -68,6 +69,8 @@ def main() -> int:
                     "pip",
                     "install",
                     "--disable-pip-version-check",
+                    "--constraint",
+                    str(CONSTRAINTS),
                     str(wheels[0]),
                 ),
                 cwd=temporary_path,

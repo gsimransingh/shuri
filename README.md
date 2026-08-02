@@ -12,6 +12,7 @@ EDR, or antivirus product.
 - CPU utilisation, core count, frequency, and system load when available
 - Memory and swap pressure
 - Disk capacity and free space
+- Physical-drive health, operational state, and reliability counters when exposed by Windows
 - Network adapters, MAC addresses, default gateway, DNS configuration, and reachability
 - Battery charge plus capacity health on supported Windows laptops
 - Operating-system metadata and uptime
@@ -51,10 +52,25 @@ shuri doctor
 Using a virtual environment keeps Shuri and its `shuri` command isolated from other Python
 installations on the workstation.
 
+### Build a standalone Windows executable
+
+The standalone build does not require Python on the target workstation. Build it on Windows from a
+trusted checkout; the resulting unsigned executable is written to `dist/standalone/shuri.exe`:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c requirements\constraints-py312.txt -e ".[standalone]"
+.\.venv\Scripts\python.exe scripts\build_standalone.py
+```
+
+The build script creates a single-file executable and smoke-tests `shuri.exe version` and
+`shuri.exe cpu`. CI builds the same executable on Windows and publishes it as a workflow artifact.
+Release binaries are not yet code-signed; review the source and verify provenance before deployment.
+
 For contributors:
 
 ```text
-python -m pip install -e ".[dev]"
+python -m pip install -c requirements/constraints-py312.txt -e ".[dev]"
 python scripts/verify.py
 ```
 
@@ -72,7 +88,12 @@ shuri doctor -f json -o report.json
 shuri doctor -f json --redact -o report-to-share.json
 shuri doctor -f markdown
 shuri cpu                          # one diagnostic
+shuri drives                       # physical-drive reliability
+shuri drives show                  # detailed physical-drive evidence
 shuri network
+shuri network show                 # adapters, probes, and configuration
+shuri eventlogs show               # recent event metadata
+shuri doctor show                  # expanded evidence for a full assessment
 shuri system-info                  # OS and workstation information
 shuri report --format html         # export the last saved assessment
 shuri history                      # list retained reports, newest first
@@ -88,10 +109,12 @@ Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
 Windows capacity, update, and antivirus checks use native Windows data when available;
 an unavailable data source is reported as unknown rather than scored as a failure.
-See the [platform support matrix](docs/support-matrix.md) for the exact per-check contract and the
-[report-schema policy](docs/report-schema.md) for stored-report compatibility.
+See the [platform support matrix](docs/support-matrix.md), [physical-drive policy](docs/physical-drive-health.md),
+[reproducible build guide](docs/reproducible-builds.md), and [report-schema policy](docs/report-schema.md).
 
-Full scans show live progress, and reports include the duration of each diagnostic. The latest
+Full scans show live progress. CPU is sampled before Shuri starts its heavier collectors, then the
+remaining independent diagnostics run through a bounded four-worker pool. Reports include each
+diagnostic's duration and the actual wall-clock scan duration. The latest
 local report is written atomically to Shuri's per-user application-state directory, so
 `shuri report` works consistently from any folder. A legacy report in the checkout's `.shuri`
 folder is copied to the new location the first time it is loaded. Each `doctor` assessment is also
@@ -114,8 +137,14 @@ an export, pass `--redact`. Redacted exports replace the report and metric hostn
 probe targets, usernames, and MAC addresses, and remove collected IP-address and DNS-server lists.
 They retain health status, timings, hardware facts, deductions, and non-identifying service and
 security state. Shuri does not collect file contents, passwords, browser history, or command-line
-contents. Review every report before sharing it because organization-specific check output may
-still be sensitive.
+contents. Physical-drive reports include model, type, capacity, and reliability state but do not
+request serial numbers. Review every report before sharing it because organization-specific check
+output may still be sensitive.
+
+Individual diagnostic commands show a concise overview by default. Add the `show` action—for
+example, `shuri network show`—to display collected evidence in readable tables. `shuri doctor show`
+expands structured evidence across a complete assessment. JSON remains the full machine-readable
+representation.
 
 ## Health score
 
@@ -145,9 +174,9 @@ very low system-drive space subtracts 15 points, and a pending reboot subtracts
 
 ## Roadmap
 
-Shuri 0.3.0 completes local assessment history and comparison. The planned 0.4.0 milestone adds
-read-only physical-drive health and SMART/reliability evidence on supported Windows storage while
-preserving Shuri's conservative `UNKNOWN` semantics. See the
+Shuri 0.4.0 adds read-only physical-drive health, reproducible builds, bounded scan concurrency,
+and a smoke-tested standalone Windows executable while preserving conservative `UNKNOWN` semantics.
+The next planned milestone focuses on privacy-bounded resource attribution. See the
 [current roadmap](docs/codebase-review-and-roadmap.md) for scope, exit criteria, limitations, and
 later candidates.
 

@@ -98,3 +98,27 @@ def test_compare_explains_when_history_is_insufficient(
 
     assert result.exit_code == 1
     assert "Only 0 assessed historical report" in result.output
+
+
+def test_diagnostic_show_renders_detailed_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = CheckResult(
+        "network",
+        "Network",
+        CheckStatus.PASS,
+        "Healthy.",
+        metrics={"adapters": [{"name": "Wi-Fi", "is_up": True, "addresses": []}]},
+    )
+    monkeypatch.setattr(cli.DiagnosticRunner, "run", lambda _self, _names: (result,))
+
+    command = CliRunner().invoke(cli.app, ["network", "show"])
+
+    assert command.exit_code == 0
+    assert "Network Adapters" in command.output
+    assert "Wi-Fi" in command.output
+
+
+def test_diagnostic_rejects_unknown_action() -> None:
+    command = CliRunner().invoke(cli.app, ["network", "details"])
+
+    assert command.exit_code != 0
+    assert "only supported action is 'show'" in unstyle(command.output)

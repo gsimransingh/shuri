@@ -39,6 +39,31 @@ def test_network_status_outcomes(
     assert network.check_network().status is expected
 
 
+def test_partial_windows_network_configuration_is_a_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        network,
+        "_adapter_snapshots",
+        lambda: (AdapterSnapshot("Ethernet", True, ("192.0.2.10",), None),),
+    )
+    monkeypatch.setattr(
+        network,
+        "_windows_network_configuration",
+        lambda: (None, (), "Windows network configuration timed out."),
+    )
+    monkeypatch.setattr(network, "_probe_configuration", lambda: ("dns.test", "tcp.test", 443))
+    monkeypatch.setattr(network, "_can_resolve", lambda _host: True)
+    monkeypatch.setattr(network, "_can_connect", lambda _host, _port: True)
+
+    result = network.check_network()
+
+    assert result.status is CheckStatus.WARNING
+    assert result.metrics["configuration_complete"] is False
+    assert "configuration partial" in result.summary
+    assert result.deductions == ()
+
+
 @pytest.mark.parametrize(
     ("levels", "expected"),
     (

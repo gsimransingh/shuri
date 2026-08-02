@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from rich.console import Console
+
 from shuri.core.scoring import assess_health
 from shuri.models import CheckResult, CheckStatus, Report, ScoreDeduction
 from shuri.reporters import render_html, render_json, render_markdown
+from shuri.reporters.terminal import show_check, show_check_details
 
 
 def _report() -> Report:
@@ -83,3 +86,98 @@ def test_reporters_escape_collected_text() -> None:
     assert "next row" in markdown
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
+
+
+def test_terminal_summarises_structured_metrics_without_dumping_json() -> None:
+    result = CheckResult(
+        name="network",
+        title="Network",
+        status=CheckStatus.PASS,
+        summary="Network is available.",
+        metrics={
+            "dns_servers": ["192.168.1.1", "fe80::1", "fe80::2", "fe80::3"],
+            "dns_probe": {"target": "example.com", "succeeded": True},
+            "adapters": [
+                {"name": "Wi-Fi", "is_up": True, "addresses": ["192.168.1.2"]},
+                {"name": "Ethernet", "is_up": False, "addresses": []},
+            ],
+        },
+    )
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check(result, console)
+
+    rendered = console.export_text()
+    assert "Working" in rendered
+    assert "1 active of 2 detected" in rendered
+    assert "4 configured" in rendered
+    assert '"target"' not in rendered
+    assert '"addresses"' not in rendered
+
+
+def test_terminal_summarises_physical_drive_inventory() -> None:
+    result = CheckResult(
+        name="physical_drives",
+        title="Physical Drives",
+        status=CheckStatus.PASS,
+        summary="Drive health is available.",
+        metrics={
+            "physical_drives": [
+                {"model": "Example SSD", "health_status": "Healthy", "size_bytes": 1_000}
+            ]
+        },
+    )
+    console = Console(record=True, width=100, color_system=None)
+
+    show_check(result, console)
+
+    rendered = console.export_text()
+    assert "1 healthy of 1 detected" in rendered
+    assert '"model"' not in rendered
+
+
+def test_terminal_details_render_adapter_rows() -> None:
+    result = CheckResult(
+        name="network",
+        title="Network",
+        status=CheckStatus.PASS,
+        summary="Healthy.",
+        metrics={"adapters": [{"name": "Wi-Fi", "is_up": True, "addresses": ["192.168.1.2"]}]},
+    )
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check_details(result, console)
+
+    rendered = console.export_text()
+    assert "Network Adapters" in rendered
+    assert "Wi-Fi" in rendered
+    assert "Connected" in rendered
+    assert "192.168.1.2" in rendered
+
+
+def test_terminal_summarises_services_and_defender_plainly() -> None:
+    result = CheckResult(
+        name="security",
+        title="Security",
+        status=CheckStatus.PASS,
+        summary="Healthy.",
+        metrics={
+            "services": {
+                "one": {"state": "running"},
+                "two": {"state": "stopped"},
+            },
+            "defender": {
+                "AMServiceEnabled": True,
+                "AntivirusEnabled": True,
+                "RealTimeProtectionEnabled": True,
+            },
+        },
+    )
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check(result, console)
+
+    rendered = console.export_text()
+    assert "1 running of 2 monitored" in rendered
+    assert "Enabled; real-time protection on" in rendered
+    assert "detail(s) available" not in rendered

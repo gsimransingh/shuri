@@ -24,6 +24,8 @@ class ScoringPolicy:
     critical_battery_health_percent: float = 60.0
     stale_antivirus_signature_days: int = 14
     repeated_error_event_count: int = 5
+    high_drive_temperature_celsius: float = 70.0
+    high_drive_wear_percent: float = 90.0
     high_cpu_points: int = 5
     critical_cpu_points: int = 10
     low_memory_points: int = 5
@@ -46,6 +48,8 @@ class ScoringPolicy:
     stale_antivirus_signatures_points: int = 5
     critical_event_points: int = 10
     repeated_error_event_points: int = 5
+    physical_drive_warning_points: int = 8
+    physical_drive_failure_points: int = 20
 
     def __post_init__(self) -> None:
         point_fields = (

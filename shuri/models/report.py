@@ -75,10 +75,13 @@ class Report:
     shuri_version: str = __version__
     schema_version: int = REPORT_SCHEMA_VERSION
     redacted: bool = False
+    scan_duration_ms: float = 0.0
 
     @property
     def duration_ms(self) -> float:
-        """Return cumulative diagnostic execution time."""
+        """Return wall-clock scan time, or cumulative time for legacy reports."""
+        if self.scan_duration_ms > 0:
+            return round(self.scan_duration_ms, 1)
         return round(sum(result.duration_ms for result in self.results), 1)
 
     @classmethod
@@ -87,6 +90,7 @@ class Report:
         results: tuple[CheckResult, ...],
         hostname: str,
         assessment: HealthAssessment | None = None,
+        scan_duration_ms: float = 0.0,
     ) -> Report:
         """Create a report with a timezone-aware timestamp."""
         return cls(
@@ -94,6 +98,7 @@ class Report:
             hostname=hostname,
             results=results,
             assessment=assessment,
+            scan_duration_ms=scan_duration_ms,
         )
 
     def to_dict(self) -> dict[str, Any]:

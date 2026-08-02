@@ -5,6 +5,8 @@ import platform
 
 import pytest
 
+from shuri.checks.physical_drives import check_physical_drives
+from shuri.models import CheckStatus
 from shuri.utils.platform import run_powershell
 
 pytestmark = [
@@ -21,3 +23,10 @@ def test_read_only_powershell_boundary_on_windows() -> None:
 
     assert result.succeeded
     assert result.output.strip()
+
+
+def test_read_only_physical_drive_boundary_on_windows() -> None:
+    result = check_physical_drives()
+
+    assert result.name == "physical_drives"
+    assert result.status in set(CheckStatus)

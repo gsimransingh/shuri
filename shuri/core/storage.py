@@ -165,7 +165,7 @@ def load_latest_report() -> Report | None:
 def report_from_dict(data: dict[str, Any]) -> Report:
     """Rehydrate a report previously produced by :meth:`Report.to_dict`."""
     schema_version = _integer(data.get("schema_version", 0), "schema_version")
-    if schema_version not in {0, 1, REPORT_SCHEMA_VERSION}:
+    if schema_version not in {0, 1, 2, REPORT_SCHEMA_VERSION}:
         raise ReportStorageError(
             f"Report schema {schema_version} is not supported by this Shuri version."
         )
@@ -192,6 +192,10 @@ def report_from_dict(data: dict[str, Any]) -> Report:
         generated_at = datetime.fromisoformat(_string(data.get("generated_at"), "generated_at"))
     except ValueError as error:
         raise ReportStorageError("Saved report has an invalid generated_at.") from error
+    legacy_duration = round(sum(result.duration_ms for result in results), 1)
+    scan_duration_ms = _number(data.get("scan_duration_ms", legacy_duration), "scan_duration_ms")
+    if scan_duration_ms < 0:
+        raise ReportStorageError("Saved report has a negative scan_duration_ms.")
     report = Report(
         generated_at=generated_at,
         hostname=_string(data.get("hostname"), "hostname"),
@@ -200,6 +204,7 @@ def report_from_dict(data: dict[str, Any]) -> Report:
         shuri_version=_string(data.get("shuri_version", "0.1.0"), "shuri_version"),
         schema_version=REPORT_SCHEMA_VERSION,
         redacted=_boolean(data.get("redacted", False), "redacted"),
+        scan_duration_ms=scan_duration_ms,
     )
     if assessment is not None:
         actual_unknown_checks = tuple(

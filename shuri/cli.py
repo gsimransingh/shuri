@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 from pathlib import Path
+from time import perf_counter
 from typing import Annotated
 
 import typer
@@ -23,6 +24,7 @@ from shuri.reporters import render_html, render_json, render_markdown
 from shuri.reporters.terminal import (
     scan_progress,
     show_check,
+    show_check_details,
     show_comparison,
     show_error,
     show_exported,
@@ -50,10 +52,22 @@ ReportFormat = Annotated[
 
 def _build_report(with_assessment: bool, names: tuple[str, ...] | None = None) -> Report:
     registry = default_registry()
+    started = perf_counter()
     with scan_progress() as progress:
-        results = DiagnosticRunner(registry).run(names, progress=progress)
+        results = DiagnosticRunner(registry).run(
+            names,
+            progress=progress,
+            max_workers=4,
+            serial_names=("cpu",),
+        )
+    scan_duration_ms = (perf_counter() - started) * 1000
     assessment = assess_health(results) if with_assessment else None
-    report = Report.create(results=results, hostname=socket.gethostname(), assessment=assessment)
+    report = Report.create(
+        results=results,
+        hostname=socket.gethostname(),
+        assessment=assessment,
+        scan_duration_ms=round(scan_duration_ms, 1),
+    )
     try:
         save_latest_report(report)
     except ReportStorageError as error:
@@ -110,6 +124,7 @@ def scan() -> None:
 
 @app.command()
 def doctor(
+    action: Annotated[str | None, typer.Argument(help="Use 'show' for detailed evidence.")] = None,
     report_format: ReportFormat = None,
     html: Annotated[bool, typer.Option("--html", help="Export an HTML report.")] = False,
     json_format: Annotated[bool, typer.Option("--json", help="Export a JSON report.")] = False,
@@ -121,13 +136,14 @@ def doctor(
     ] = False,
 ) -> None:
     """Run all diagnostics, calculate health, and optionally export a report."""
+    _validate_action(action)
     report_format = _selected_format(report_format, html, json_format, markdown)
     if output and report_format is None:
         raise typer.BadParameter("--output requires -f/--format, --html, --json, or --markdown.")
     if redact and report_format is None:
         raise typer.BadParameter("--redact requires an exported report format.")
     report = _build_report(with_assessment=True)
-    show_report(report)
+    show_report(report, details=action == "show")
     if report_format:
         show_exported(_export(report, report_format, output, redact=redact))
 
@@ -202,75 +218,97 @@ def compare(
     show_comparison(compare_reports(reports[older - 1], reports[newer - 1]))
 
 
-def _single_check(name: str) -> None:
+def _validate_action(action: str | None) -> None:
+    if action not in {None, "show"}:
+        raise typer.BadParameter("The only supported action is 'show'.")
+
+
+def _single_check(name: str, action: str | None = None) -> None:
+    _validate_action(action)
     result = DiagnosticRunner(default_registry()).run((name,))[0]
     show_check(result)
+    if action == "show":
+        show_check_details(result)
+
+
+def _run_single_command(name: str, action: str | None) -> None:
+    """Preserve the original one-argument command boundary for concise commands."""
+    if action is None:
+        _single_check(name)
+    else:
+        _single_check(name, action)
 
 
 @app.command()
-def cpu() -> None:
+def cpu(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run CPU diagnostics only."""
-    _single_check("cpu")
+    _run_single_command("cpu", action)
 
 
 @app.command()
-def memory() -> None:
+def memory(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run memory diagnostics only."""
-    _single_check("memory")
+    _run_single_command("memory", action)
 
 
 @app.command()
-def disk() -> None:
+def disk(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run disk diagnostics only."""
-    _single_check("disk")
+    _run_single_command("disk", action)
+
+
+@app.command(name="drives")
+def physical_drives(action: Annotated[str | None, typer.Argument()] = None) -> None:
+    """Run physical-drive reliability diagnostics only."""
+    _run_single_command("physical_drives", action)
 
 
 @app.command()
-def network() -> None:
+def network(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run network diagnostics only."""
-    _single_check("network")
+    _run_single_command("network", action)
 
 
 @app.command()
-def battery() -> None:
+def battery(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run battery diagnostics only."""
-    _single_check("battery")
+    _run_single_command("battery", action)
 
 
 @app.command()
-def system() -> None:
+def system(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run operating-system diagnostics only."""
-    _single_check("system")
+    _run_single_command("system", action)
 
 
 @app.command(name="system-info")
-def system_info() -> None:
+def system_info(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Show operating-system and workstation information."""
-    _single_check("system")
+    _run_single_command("system", action)
 
 
 @app.command()
-def services() -> None:
+def services(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run Windows service diagnostics only."""
-    _single_check("services")
+    _run_single_command("services", action)
 
 
 @app.command()
-def updates() -> None:
+def updates(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run Windows update diagnostics only."""
-    _single_check("updates")
+    _run_single_command("updates", action)
 
 
 @app.command()
-def antivirus() -> None:
+def antivirus(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run Microsoft Defender diagnostics only."""
-    _single_check("antivirus")
+    _run_single_command("antivirus", action)
 
 
 @app.command(name="eventlogs")
-def event_logs() -> None:
+def event_logs(action: Annotated[str | None, typer.Argument()] = None) -> None:
     """Run recent Windows event-log diagnostics only."""
-    _single_check("eventlogs")
+    _run_single_command("eventlogs", action)
 
 
 @app.command()

@@ -10,6 +10,7 @@ from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import command_failure_message, is_windows, run_powershell
 
 _MAX_EVENTS = 50
+_LEVEL_NAMES = {1: "Critical", 2: "Error", 3: "Warning"}
 
 
 def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
@@ -25,6 +26,28 @@ def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
     truncated = len(levels) > _MAX_EVENTS
     levels = levels[:_MAX_EVENTS]
     return levels.count(1), levels.count(2), levels.count(3), truncated
+
+
+def parse_event_details(payload: str) -> tuple[dict[str, object], ...]:
+    """Return bounded, non-message event metadata suitable for detailed display."""
+    try:
+        parsed: Any = json.loads(payload)
+    except json.JSONDecodeError:
+        return ()
+    entries = parsed if isinstance(parsed, list) else [parsed]
+    details: list[dict[str, object]] = []
+    for entry in entries[:_MAX_EVENTS]:
+        if not isinstance(entry, dict) or entry.get("Level") not in _LEVEL_NAMES:
+            continue
+        details.append(
+            {
+                "time_created": entry.get("TimeCreated", "Unavailable"),
+                "level": _LEVEL_NAMES[int(entry["Level"])],
+                "event_id": entry.get("Id", "Unavailable"),
+                "provider": entry.get("ProviderName", "Unavailable"),
+            }
+        )
+    return tuple(details)
 
 
 def check_event_logs() -> CheckResult:
@@ -43,7 +66,8 @@ def check_event_logs() -> CheckResult:
         f"-MaxEvents {_MAX_EVENTS + 1}) "
         "} catch { if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') "
         "{ $events = @() } else { throw } }; "
-        "$selected = @($events | Select-Object Level); "
+        "$selected = @($events | Select-Object Level, Id, ProviderName, "
+        "@{Name='TimeCreated';Expression={$_.TimeCreated.ToUniversalTime().ToString('o')}}); "
         "ConvertTo-Json -InputObject $selected -Compress"
     )
     result = run_powershell(script, timeout=8)
@@ -63,6 +87,7 @@ def check_event_logs() -> CheckResult:
             summary="The Windows System event log returned invalid structured data.",
         )
     critical, errors, warnings, truncated = counts
+    event_details = parse_event_details(result.output)
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
@@ -102,6 +127,7 @@ def check_event_logs() -> CheckResult:
             "window_hours": 24,
             "truncated": truncated,
             "maximum_events": _MAX_EVENTS,
+            "recent_events": list(event_details),
         },
         findings=tuple(findings),
         deductions=tuple(deductions),

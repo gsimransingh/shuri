@@ -95,11 +95,20 @@ def _windows_network_configuration() -> tuple[str | None, tuple[str, ...], str |
     if not is_windows():
         return None, (), None
     script = """
-    Get-NetIPConfiguration | ForEach-Object {
-        [PSCustomObject]@{
-            Gateway = @($_.IPv4DefaultGateway | ForEach-Object { $_.NextHop })
-            DnsServers = @($_.DNSServer.ServerAddresses)
-        }
+    $gateway = @(
+        Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' `
+            -ErrorAction SilentlyContinue |
+        Where-Object { $_.NextHop -and $_.NextHop -ne '0.0.0.0' } |
+        Sort-Object RouteMetric |
+        Select-Object -ExpandProperty NextHop -First 1
+    )
+    $dns = @(
+        Get-DnsClientServerAddress -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty ServerAddresses
+    )
+    [PSCustomObject]@{
+        Gateway = $gateway
+        DnsServers = $dns
     } | ConvertTo-Json -Depth 3 -Compress
     """
     result = run_powershell(script, timeout=5)
@@ -162,17 +171,23 @@ def check_network() -> CheckResult:
             )
         )
     if configuration_error:
+        status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append(configuration_error)
     dns_state = "available" if dns_resolution else "unavailable"
+    configuration_state = "partial" if configuration_error else "complete"
     return CheckResult(
         name="network",
         title="Network",
         status=status,
-        summary=f"{len(active)} active adapter(s); DNS {dns_state}.",
+        summary=(
+            f"{len(active)} active adapter(s); DNS {dns_state}; "
+            f"configuration {configuration_state}."
+        ),
         metrics={
             "hostname": socket.gethostname(),
             "default_gateway": default_gateway,
             "dns_servers": list(dns_servers),
+            "configuration_complete": configuration_error is None,
             "dns_probe": {"target": dns_host, "succeeded": dns_resolution},
             "tcp_probe": {
                 "target": connect_host,

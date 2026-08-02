@@ -46,6 +46,7 @@ def default_registry() -> DiagnosticRegistry:
     from shuri.checks.eventlogs import check_event_logs
     from shuri.checks.memory import check_memory
     from shuri.checks.network import check_network
+    from shuri.checks.physical_drives import check_physical_drives
     from shuri.checks.services import check_services
     from shuri.checks.system import check_system
     from shuri.checks.updates import check_updates
@@ -56,6 +57,7 @@ def default_registry() -> DiagnosticRegistry:
         ("cpu", check_cpu),
         ("memory", check_memory),
         ("disk", check_disk),
+        ("physical_drives", check_physical_drives),
         ("network", check_network),
         ("battery", check_battery),
         ("services", check_services),

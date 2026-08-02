@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,13 +36,58 @@ def _metric_value(key: str, value: object) -> str:
         return "Yes" if value else "No"
     if value is None:
         return "Unavailable"
-    if isinstance(value, (dict, list, tuple)):
-        return json.dumps(value, default=str)
+    if isinstance(value, dict):
+        succeeded = value.get("succeeded")
+        if isinstance(succeeded, bool):
+            return "Working" if succeeded else "Not working"
+        if key == "services":
+            running = sum(
+                1
+                for service in value.values()
+                if (service.get("state") if isinstance(service, dict) else service) == "running"
+            )
+            return f"{running} running of {len(value)} monitored"
+        if key == "defender":
+            enabled = bool(value.get("AMServiceEnabled") and value.get("AntivirusEnabled"))
+            real_time = bool(value.get("RealTimeProtectionEnabled"))
+            if enabled:
+                return "Enabled; real-time protection " + ("on" if real_time else "off")
+            return "Disabled"
+        return f"{len(value)} detail(s) available"
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return "None"
+        if key == "dns_servers":
+            return f"{len(value)} configured"
+        if key == "recent_events":
+            return f"{len(value)} recorded"
+        if all(isinstance(item, (str, int, float, bool)) for item in value):
+            visible = ", ".join(str(item) for item in value[:3])
+            remaining = len(value) - 3
+            return f"{visible} (+{remaining} more)" if remaining else visible
+        if key == "adapters":
+            active = sum(
+                1 for item in value if isinstance(item, dict) and item.get("is_up") is True
+            )
+            return f"{active} active of {len(value)} detected"
+        if key == "physical_drives":
+            healthy = sum(
+                1
+                for item in value
+                if isinstance(item, dict)
+                and str(item.get("health_status", "")).casefold() == "healthy"
+            )
+            return f"{healthy} healthy of {len(value)} detected"
+        if key == "filesystems":
+            return f"{len(value)} detected"
+        return f"{len(value)} item(s) available"
     return str(value)
 
 
 def _metric_label(key: str) -> str:
-    return key.removesuffix("_bytes").replace("_", " ").title()
+    words = key.removesuffix("_bytes").split("_")
+    acronyms = {"cpu", "dns", "ip", "mac", "tcp", "usb"}
+    return " ".join(word.upper() if word in acronyms else word.title() for word in words)
 
 
 def show_check(result: CheckResult, console: Console | None = None) -> None:
@@ -68,7 +112,118 @@ def show_check(result: CheckResult, console: Console | None = None) -> None:
         )
 
 
-def show_report(report: Report, console: Console | None = None) -> None:
+def _detail_text(value: object) -> str:
+    return _metric_value("", value)
+
+
+def _show_mapping_table(target: Console, title: str, entries: dict[object, object]) -> None:
+    table = Table(title=title, header_style="bold bright_blue")
+    table.add_column("Setting")
+    table.add_column("Value")
+    for key, value in entries.items():
+        table.add_row(_metric_label(str(key)), _detail_text(value))
+    target.print(table)
+
+
+def _show_list_table(target: Console, key: str, entries: list[object]) -> bool:
+    dictionaries = [entry for entry in entries if isinstance(entry, dict)]
+    if not dictionaries:
+        return False
+    specifications = {
+        "adapters": (
+            "Network Adapters",
+            (("name", "Adapter"), ("is_up", "State"), ("addresses", "Addresses")),
+        ),
+        "filesystems": (
+            "Filesystems",
+            (
+                ("device", "Device"),
+                ("mountpoint", "Mount"),
+                ("filesystem", "Type"),
+                ("total_bytes", "Total"),
+                ("free_bytes", "Free"),
+                ("used_percent", "Used %"),
+            ),
+        ),
+        "physical_drives": (
+            "Physical Drives",
+            (
+                ("model", "Model"),
+                ("media_type", "Type"),
+                ("bus_type", "Bus"),
+                ("size_bytes", "Size"),
+                ("health_status", "Health"),
+                ("operational_status", "Operational"),
+                ("temperature_celsius", "Temp °C"),
+                ("wear_percent", "Wear %"),
+            ),
+        ),
+        "recent_events": (
+            "Recent System Events",
+            (
+                ("time_created", "Time"),
+                ("level", "Level"),
+                ("event_id", "Event ID"),
+                ("provider", "Provider"),
+            ),
+        ),
+    }
+    specification = specifications.get(key)
+    if specification is None:
+        return False
+    title, columns = specification
+    table = Table(title=title, header_style="bold bright_blue")
+    for _, label in columns:
+        table.add_column(label)
+    for entry in dictionaries:
+        values: list[str] = []
+        for field, _ in columns:
+            value = entry.get(field)
+            if field == "is_up":
+                values.append("Connected" if value is True else "Disconnected")
+            elif field.endswith("_bytes") and isinstance(value, (int, float)):
+                values.append(format_bytes(value))
+            elif isinstance(value, list):
+                values.append(", ".join(str(item) for item in value) or "—")
+            else:
+                values.append("Unavailable" if value is None else str(value))
+        table.add_row(*values)
+    target.print(table)
+    return True
+
+
+def show_check_details(result: CheckResult, console: Console | None = None) -> None:
+    """Display collected structured evidence as readable, purpose-built tables."""
+    target = console or _CONSOLE
+    rendered = False
+    for key, value in result.metrics.items():
+        if isinstance(value, list) and _show_list_table(target, key, value):
+            rendered = True
+        elif key == "services" and isinstance(value, dict):
+            services = Table(title="Windows Services", header_style="bold bright_blue")
+            services.add_column("Service")
+            services.add_column("State")
+            for service_name, service in value.items():
+                if isinstance(service, dict):
+                    services.add_row(
+                        str(service.get("display_name", service_name)),
+                        str(service.get("state", "Unavailable")).title(),
+                    )
+                else:
+                    services.add_row(str(service_name), str(service).title())
+            target.print(services)
+            rendered = True
+        elif key == "defender" and isinstance(value, dict):
+            _show_mapping_table(target, "Microsoft Defender", value)
+            rendered = True
+        elif key in {"dns_probe", "tcp_probe"} and isinstance(value, dict):
+            _show_mapping_table(target, _metric_label(key), value)
+            rendered = True
+    if not rendered:
+        target.print("[dim]No additional structured evidence is available for this check.[/dim]")
+
+
+def show_report(report: Report, console: Console | None = None, *, details: bool = False) -> None:
     """Display a concise assessment summary and any actionable findings."""
     target = console or _CONSOLE
     title = "Shuri — Workstation Health"
@@ -128,6 +283,10 @@ def show_report(report: Report, console: Console | None = None) -> None:
         for item in report.assessment.deductions:
             deductions.add_row(f"-{item.points}", item.reason, item.check)
         target.print(deductions)
+    if details:
+        for result in report.results:
+            if any(isinstance(value, (dict, list)) for value in result.metrics.values()):
+                show_check_details(result, target)
 
 
 def show_exported(path: Path, console: Console | None = None) -> None:
@@ -240,7 +399,7 @@ def scan_progress(
 
     def update(name: str, result: CheckResult | None, index: int, total: int) -> None:
         if result is None:
-            progress.update(task_id, description=f"[{index}/{total}] Running {name}")
+            progress.update(task_id, description=f"Starting {name} ({index}/{total})")
         else:
             duration = f"{result.duration_ms:.0f} ms"
             progress.update(
