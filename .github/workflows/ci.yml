@@ -43,7 +43,7 @@ jobs:
         run: python scripts/build_standalone.py
       - name: Upload standalone Windows executable
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: shuri-windows-x64
           path: dist/standalone/shuri.exe
