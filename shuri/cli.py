@@ -9,17 +9,25 @@ from typing import Annotated
 import typer
 
 from shuri import __version__
-from shuri.core import DiagnosticRunner, assess_health, default_registry
+from shuri.core import DiagnosticRunner, assess_health, compare_reports, default_registry
 from shuri.core.exceptions import ReportStorageError
 from shuri.core.privacy import redact_report
-from shuri.core.storage import load_latest_report, save_latest_report
+from shuri.core.storage import (
+    clear_report_history,
+    load_latest_report,
+    load_report_history,
+    save_latest_report,
+)
 from shuri.models import Report
 from shuri.reporters import render_html, render_json, render_markdown
 from shuri.reporters.terminal import (
     scan_progress,
     show_check,
+    show_comparison,
     show_error,
     show_exported,
+    show_history,
+    show_history_cleared,
     show_report,
 )
 from shuri.utils.helpers import default_report_path
@@ -145,6 +153,53 @@ def report(
         show_error("No saved report exists. Run 'shuri doctor' or 'shuri scan' first.")
         raise typer.Exit(code=1)
     show_exported(_export(saved, report_format.lower(), output, redact=redact))
+
+
+@app.command()
+def history(
+    limit: Annotated[int, typer.Option("--limit", "-n", min=1, max=50)] = 10,
+    clear: Annotated[bool, typer.Option("--clear", help="Delete retained report history.")] = False,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm history deletion.")] = False,
+) -> None:
+    """List retained local reports or clear report history."""
+    if yes and not clear:
+        raise typer.BadParameter("--yes can only be used with --clear.")
+    if clear:
+        if not yes:
+            raise typer.BadParameter("History deletion requires --clear --yes.")
+        try:
+            show_history_cleared(clear_report_history())
+        except ReportStorageError as error:
+            show_error(str(error))
+            raise typer.Exit(code=1) from error
+        return
+    reports = load_report_history(limit=limit, assessed_only=True)
+    if not reports:
+        show_error("No report history exists. Run 'shuri doctor' to create an assessment.")
+        raise typer.Exit(code=1)
+    show_history(reports)
+
+
+@app.command()
+def compare(
+    older: Annotated[
+        int, typer.Option("--older", min=2, help="Older assessment number from history.")
+    ] = 2,
+    newer: Annotated[
+        int, typer.Option("--newer", min=1, help="Newer assessment number from history.")
+    ] = 1,
+) -> None:
+    """Compare two retained health assessments."""
+    if older <= newer:
+        raise typer.BadParameter("--older must be a larger history number than --newer.")
+    reports = load_report_history(limit=older, assessed_only=True)
+    if len(reports) < older:
+        show_error(
+            f"Only {len(reports)} assessed historical report(s) exist; "
+            f"comparison requires assessment #{older}."
+        )
+        raise typer.Exit(code=1)
+    show_comparison(compare_reports(reports[older - 1], reports[newer - 1]))
 
 
 def _single_check(name: str) -> None:

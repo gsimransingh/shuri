@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,62 @@ def test_latest_report_is_saved_atomically_to_stable_path(
     assert saved == target
     assert storage.load_latest_report() == report
     assert not tuple(target.parent.glob("*.tmp"))
+
+
+def test_report_history_is_newest_first_and_can_filter_assessments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "state" / "latest-report.json"
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    first = Report(datetime(2026, 8, 1, tzinfo=UTC), "host", (), assessment=assess_health(()))
+    second = Report(datetime(2026, 8, 2, tzinfo=UTC), "host", ())
+    third = Report(datetime(2026, 8, 3, tzinfo=UTC), "host", (), assessment=assess_health(()))
+    for report in (first, second, third):
+        storage.save_latest_report(report)
+
+    assert storage.load_report_history() == (third, first)
+    assert storage.load_report_history(assessed_only=True) == (third, first)
+    assert storage.load_report_history(limit=1) == (third,)
+    assert storage.load_latest_report() == third
+
+
+def test_history_retention_keeps_the_newest_fifty_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "state" / "latest-report.json"
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    for index in range(52):
+        storage.save_latest_report(
+            Report(
+                start + timedelta(days=index),
+                "host",
+                (),
+                assessment=assess_health(()),
+            )
+        )
+
+    history = storage.load_report_history()
+
+    assert len(history) == 50
+    assert history[0].generated_at == start + timedelta(days=51)
+    assert history[-1].generated_at == start + timedelta(days=2)
+
+
+def test_corrupt_history_is_ignored_and_history_can_be_cleared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "state" / "latest-report.json"
+    monkeypatch.setattr(storage, "latest_report_path", lambda: target)
+    report = Report.create((), "host", assess_health(()))
+    storage.save_latest_report(report)
+    history_directory = storage.report_history_path()
+    (history_directory / "broken.json").write_text("{bad-json", encoding="utf-8")
+
+    assert storage.load_report_history() == (report,)
+    assert storage.clear_report_history() == 2
+    assert storage.load_report_history() == ()
+    assert target.is_file()
 
 
 def test_legacy_report_is_copied_to_stable_location(

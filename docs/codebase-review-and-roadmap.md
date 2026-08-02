@@ -177,11 +177,18 @@ Only after the trust/reliability milestones, consider process-level CPU/memory a
 SMART/health where safely available, richer update age/history, configurable service policies,
 trend comparison between reports, and organization-specific scoring profiles.
 
+**Completed 2026-08-02 (Shuri 0.3.0):** Shuri now retains the newest 50 local assessments, lists them
+with stable newest-first selection numbers, compares selected assessed reports across health score,
+coverage, diagnostic statuses, and selected resource/security metrics, tolerates damaged individual
+history entries, and provides explicit cleanup that retains the latest report. The existing report
+schema remains unchanged.
+
 ## Immediate next steps
 
-1. Push the Milestone 3 changes and confirm both Windows and Ubuntu verification jobs pass.
-2. Treat any matrix-only failure as a release blocker and reproduce it locally where practical.
-3. After the matrix is green, choose the next patch version and complete the release checklist.
+1. Validate the 0.3.0 history workflow on a real workstation and in the Windows/Ubuntu CI matrix.
+2. Measure scan latency before deciding whether bounded concurrency is justified.
+3. Choose the next capability: disk SMART health, configurable service policy, or richer update
+   history.
 
 ## Verification note
 

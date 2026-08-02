@@ -75,6 +75,10 @@ shuri cpu                          # one diagnostic
 shuri network
 shuri system-info                  # OS and workstation information
 shuri report --format html         # export the last saved assessment
+shuri history                      # list retained reports, newest first
+shuri compare                      # compare the two newest assessments
+shuri compare --older 4 --newer 2  # compare selected history entries
+shuri history --clear --yes        # clear history but retain the latest report
 shuri version
 ```
 
@@ -90,7 +94,10 @@ See the [platform support matrix](docs/support-matrix.md) for the exact per-chec
 Full scans show live progress, and reports include the duration of each diagnostic. The latest
 local report is written atomically to Shuri's per-user application-state directory, so
 `shuri report` works consistently from any folder. A legacy report in the checkout's `.shuri`
-folder is copied to the new location the first time it is loaded.
+folder is copied to the new location the first time it is loaded. Each `doctor` assessment is also
+retained in local history; Shuri automatically keeps the newest 50 assessments. `shuri compare`
+shows score, coverage, diagnostic-status changes, and useful CPU, memory, battery, disk, update,
+and event-log metric trends.
 
 ## Network probes
 
@@ -101,7 +108,8 @@ provide their own targets with `SHURI_DNS_PROBE_HOST`, `SHURI_CONNECTIVITY_HOST`
 
 ## Privacy and sharing
 
-Local saved reports remain complete so support diagnostics retain their evidence. Before sharing
+Local latest and historical reports remain complete so support diagnostics retain their evidence.
+They never leave the workstation unless the user exports or otherwise shares them. Before sharing
 an export, pass `--redact`. Redacted exports replace the report and metric hostnames, gateways,
 probe targets, usernames, and MAC addresses, and remove collected IP-address and DNS-server lists.
 They retain health status, timings, hardware facts, deductions, and non-identifying service and

@@ -6,13 +6,14 @@ import json
 import os
 import platform
 import tempfile
-from datetime import datetime
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from shuri.core.exceptions import ReportStorageError
 from shuri.models import CheckResult, CheckStatus, HealthAssessment, Report, ScoreDeduction
-from shuri.utils.constants import MAX_SAVED_REPORT_BYTES
+from shuri.utils.constants import MAX_HISTORY_REPORTS, MAX_SAVED_REPORT_BYTES
 from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION
 
 
@@ -33,35 +34,103 @@ def legacy_report_path() -> Path:
     return Path.cwd() / ".shuri" / "latest-report.json"
 
 
+def report_history_path() -> Path:
+    """Return the directory containing retained local report history."""
+    return latest_report_path().parent / "history"
+
+
 def save_latest_report(report: Report) -> Path:
-    """Persist a JSON copy atomically for the ``report`` command."""
+    """Persist the latest report and a retained historical copy atomically."""
     path = latest_report_path()
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".latest-report-", suffix=".tmp", dir=path.parent
-        )
-        temporary_path = Path(temporary_name)
-        try:
-            try:
-                handle = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
-            except Exception:
-                os.close(descriptor)
-                raise
-            with handle:
-                json.dump(report.to_dict(), handle, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary_path, path)
-        finally:
-            temporary_path.unlink(missing_ok=True)
+        _write_report(path, report)
+        if report.assessment is not None:
+            history_directory = report_history_path()
+            generated = report.generated_at.astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+            _write_report(history_directory / f"{generated}.json", report)
+            _prune_report_history(history_directory)
     except OSError as error:
         raise ReportStorageError(
-            "The latest report could not be saved in the user data directory. "
+            "The report could not be saved in the user data directory. "
             "Check available space and folder permissions."
         ) from error
     return path
+
+
+def _write_report(path: Path, report: Report) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.stem}-", suffix=".tmp", dir=path.parent
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        try:
+            handle = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        except Exception:
+            os.close(descriptor)
+            raise
+        with handle:
+            json.dump(report.to_dict(), handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _prune_report_history(directory: Path, retain: int = MAX_HISTORY_REPORTS) -> None:
+    reports = sorted(directory.glob("*.json"), reverse=True)
+    for expired in reports[retain:]:
+        expired.unlink()
+
+
+def load_report_history(
+    *, limit: int | None = None, assessed_only: bool = False
+) -> tuple[Report, ...]:
+    """Load retained reports newest first, ignoring damaged history entries."""
+    if limit is not None and limit < 1:
+        raise ValueError("History limit must be at least 1.")
+    directory = report_history_path()
+    if not directory.is_dir():
+        return ()
+    reports: list[Report] = []
+    for path in sorted(directory.glob("*.json"), reverse=True):
+        try:
+            if path.stat().st_size > MAX_SAVED_REPORT_BYTES:
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                continue
+            report = report_from_dict(data)
+        except (OSError, ValueError, KeyError, TypeError, ReportStorageError):
+            continue
+        if assessed_only and report.assessment is None:
+            continue
+        reports.append(report)
+        if limit is not None and len(reports) >= limit:
+            break
+    return tuple(reports)
+
+
+def clear_report_history() -> int:
+    """Delete retained historical reports and return the number removed."""
+    directory = report_history_path()
+    if not directory.is_dir():
+        return 0
+    removed = 0
+    try:
+        for path in directory.glob("*.json"):
+            path.unlink()
+            removed += 1
+    except OSError as error:
+        raise ReportStorageError(
+            "Report history could not be cleared. Check folder permissions and try again."
+        ) from error
+    # Synced and managed folders may retain an empty directory temporarily.
+    with suppress(OSError):
+        directory.rmdir()
+    return removed
 
 
 def load_latest_report() -> Report | None:

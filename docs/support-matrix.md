@@ -1,6 +1,6 @@
 # Platform support
 
-Shuri 0.2.4 is developed primarily for Windows. Portable checks also run on Linux and macOS, but
+Shuri 0.3.0 is developed primarily for Windows. Portable checks also run on Linux and macOS, but
 support is stated per check so an unavailable native facility is never mistaken for a failure.
 
 ## Support levels

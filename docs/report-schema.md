@@ -1,17 +1,17 @@
 # Report schema compatibility
 
 Shuri application versions, report-schema versions, and scoring-policy versions are independent.
-The current values in Shuri 0.2.4 are:
+The current values in Shuri 0.3.0 are:
 
 | Contract | Version | Purpose |
 | --- | ---: | --- |
-| Application | 0.2.4 | CLI and package release |
+| Application | 0.3.0 | CLI and package release |
 | Report schema | 2 | Stored and exported report structure |
 | Scoring policy | 1 | Thresholds and deduction weights |
 
 ## Reader compatibility
 
-Shuri 0.2.4 reads report schemas 0, 1, and 2:
+Shuri 0.3.0 reads report schemas 0, 1, and 2:
 
 - **Schema 0:** legacy reports without an explicit `schema_version`.
 - **Schema 1:** trustworthy-assessment reports with coverage and policy metadata.
@@ -38,3 +38,6 @@ to bound local memory use. Shuri writes only the current schema.
 Consumers should inspect `schema_version` before relying on fields and should preserve unknown
 metric keys when relaying reports. They must not infer assessment completeness from score alone;
 use `completed_checks`, `unknown_checks`, and `coverage_percent`.
+
+Report history does not introduce a new schema. Each retained entry is an ordinary schema-2 report,
+and comparison reuses the validated report reader rather than defining a separate persisted format.
