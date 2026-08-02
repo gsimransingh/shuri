@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from shuri import cli
@@ -17,10 +18,15 @@ def test_doctor_rejects_output_without_a_format(monkeypatch: pytest.MonkeyPatch)
         lambda *args, **kwargs: pytest.fail("scan should not start for invalid options"),
     )
 
-    result = CliRunner().invoke(cli.app, ["doctor", "--output", "report.json"])
-
-    assert result.exit_code != 0
-    assert "--output requires" in result.output
+    with pytest.raises(typer.BadParameter, match="--output requires"):
+        cli.doctor(
+            report_format=None,
+            html=False,
+            json_format=False,
+            markdown=False,
+            output=Path("report.json"),
+            redact=False,
+        )
 
 
 def test_report_rejects_unknown_format(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
