@@ -1,197 +1,121 @@
-# Shuri codebase review and roadmap
+# Shuri roadmap
 
-Reviewed: 2026-08-01 (Shuri 0.2.0)
+Updated: 2026-08-02 (Shuri 0.3.0)
 
-## Executive summary
+## Product direction
 
-Shuri has a strong small-project foundation: diagnostics are independent, results are typed,
-scoring is explainable, output is separated from collection, and a failed check cannot abort a
-full scan. The current code is suitable for an alpha and is easy to extend.
+Shuri is a transparent, privacy-conscious workstation health assessment tool for IT support,
+systems, and security teams. It combines scattered system signals into an explainable report
+without requiring a monitoring agent, user account, cloud service, or telemetry backend.
 
-The next milestone should focus on trustworthiness rather than adding many checks. In particular,
-Shuri needs to distinguish a healthy machine from an incomplete assessment, harden saved-report
-storage and schema handling, test the Windows paths on Windows, and make potentially sensitive
-report data explicit. After that, check accuracy and packaging can be expanded confidently.
+Shuri should remain:
 
-## Current structure
+- **Explainable:** every health deduction identifies its reason and source check.
+- **Honest about uncertainty:** unavailable evidence is `UNKNOWN`, never silently healthy.
+- **Local-first:** complete reports and history remain on the workstation unless explicitly shared.
+- **Safe:** diagnostics are read-only, bounded, and independently fault-tolerant.
+- **Useful in first response:** results should help a technician decide what to investigate next.
 
-The runtime flow is:
+## Current baseline — 0.3.0
 
-1. `shuri.cli` selects a command and builds a report.
-2. `shuri.core.registry` creates the ordered set of diagnostics.
-3. `shuri.core.runner` executes each check independently and converts unexpected failures to
-   `UNKNOWN` results.
-4. Files under `shuri.checks` collect and assess individual concerns.
-5. `shuri.core.scoring` combines explicit deductions into a score.
-6. `shuri.models.report` provides the shared result/report contract.
-7. Files under `shuri.reporters` present the same report as terminal, JSON, Markdown, or HTML.
-8. `shuri.core.storage` saves the latest report for later export.
+Shuri currently provides:
 
-Supporting platform commands are isolated in `shuri.utils.platform`. Pure builder functions for
-CPU, memory, and disk make their threshold logic directly testable.
+- CPU, memory, filesystem capacity, network, battery, system, Windows service, Windows Update,
+  Microsoft Defender, and Windows event-log diagnostics.
+- Transparent health scoring with explicit deductions, assessment coverage, and policy versioning.
+- Terminal, JSON, Markdown, and HTML reporting from one typed report model.
+- Explicit share-safe redaction while preserving complete local evidence.
+- Atomic per-user latest-report storage with legacy migration and defensive schema validation.
+- Local retention of the newest 50 assessed reports.
+- Assessment comparison across score, coverage, diagnostic statuses, and selected metric trends.
+- Windows and Ubuntu CI, strict typing, linting, formatting, unit tests, a safe Windows integration
+  check, clean wheel installation, and installed-command smoke tests.
 
-## Strengths
+## Completed milestones
 
-- **Clear boundaries.** Collection, orchestration, scoring, persistence, and presentation are
-  separate. Checks do not print, and reporters do not recalculate health.
-- **Fault isolation.** One broken or unsupported diagnostic becomes `UNKNOWN` instead of taking
-  down the scan.
-- **Transparent scoring.** Every deduction has points, a reason, and a source check; all report
-  formats expose the calculation.
-- **Immutable typed contracts.** Frozen, slotted dataclasses and `CheckStatus` make the internal
-  API small and predictable.
-- **Safe command execution.** External commands use argument sequences, timeouts, captured output,
-  and no shell invocation. PowerShell usage is read-only.
-- **Graceful platform degradation.** Windows-only checks return unknown on unsupported platforms
-  rather than falsely failing the workstation.
-- **Multiple useful outputs.** Human-readable terminal/Markdown/HTML and machine-readable JSON all
-  originate from one report model.
-- **Good extension point.** A no-argument check plus one registry entry is enough to add a basic
-  diagnostic.
-- **Baseline engineering automation.** Ruff, Black, mypy strict mode, pytest, and an Ubuntu CI job
-  are configured. Generated environments, caches, reports, and local state are ignored by Git.
+| Milestone | Release | Outcome |
+| --- | --- | --- |
+| Trustworthy assessments | 0.2.1 | Coverage-aware scoring, schema validation, versioned policy, safe report loading |
+| Reliable daily use | 0.2.2 | Stable atomic storage, progress, failure categories, privacy controls, better Windows probes |
+| Test and release confidence | 0.2.3–0.2.4 | Cross-platform CI, packaging verification, Windows integration coverage, Defender date fix |
+| Local history and comparison | 0.3.0 | Retained assessments, cleanup controls, status changes, and metric trends |
 
-## Weaknesses and risks
+## Current limitations
 
-### P0: assessment correctness and trust
+- Installation requires Python 3.12 and is less convenient than a signed standalone executable.
+- A complete Windows assessment usually takes 17–21 seconds; Windows Update and network queries
+  dominate the duration.
+- Linux support covers portable checks only, and macOS remains best effort without dedicated CI.
+- Filesystem capacity is reported, but physical-drive health and SMART/reliability evidence are not.
+- High CPU or memory usage is detected without identifying the responsible processes.
+- Service expectations and scoring thresholds are not yet user-configurable.
+- Shuri has no GUI, fleet dashboard, remote management, or background monitoring.
+- Development and release dependency resolution is not pinned by a constraints or lock strategy.
 
-1. **Incomplete scans can still score 100/100.** Unknown checks make no deduction and there is no
-   coverage/confidence field. A machine where every privileged Windows query failed can be called
-   “Excellent.” The numeric score must be paired with assessment completeness, and labels should
-   not imply confidence that was not earned.
-2. **The score policy is distributed through check implementations.** Threshold constants cover
-   only CPU, memory, and disk; deduction weights and other thresholds are embedded in many files.
-   This makes policy review, calibration, versioning, and customer-specific profiles difficult.
-3. **Report data has no schema version.** `report_from_dict` assumes required keys and enum values
-   exist. A future model change or damaged cache can break `shuri report` with an unhandled error.
+## Milestone 5 — physical storage reliability (planned for 0.4.0)
 
-### P1: reliability and product behavior
+The next release will distinguish a filesystem that merely has enough free space from a physical
+drive that may be degrading. The implementation remains read-only and treats unavailable vendor or
+platform data as unknown rather than healthy or failed.
 
-4. **Latest-report storage depends on the current directory.** A scan run in one folder cannot be
-   exported from another. Installing Shuri as a system command makes this surprising. Use a stable
-   per-user application-data location, with an optional explicit path.
-5. **Saved reports are not written atomically or recovered defensively.** Interruption during a
-   write, malformed JSON, permission errors, or incompatible data can crash the command. Write a
-   temporary file then replace, validate on load, and show a concise recovery message.
-6. **Full scans are sequential.** Several independent operations have 5–20 second timeouts, so one
-   unavailable Windows subsystem can make a scan feel stalled. Add progress feedback first; then
-   consider bounded concurrency for independent I/O checks.
-7. **Connectivity semantics are too narrow.** A TCP connection to `1.1.1.1:53` may be blocked on an
-   otherwise working corporate network. DNS and one external endpoint should be reported as probes,
-   not treated as definitive internet failure; endpoints should be configurable.
-8. **Event-log counting is fragile.** It parses localized text and requests at most 50 events, so
-   counts can be language-dependent and undercount busy systems. Query structured XML and clearly
-   report truncation or request aggregate counts.
-9. **Some platform errors lose diagnostic detail.** Command wrappers collapse timeout, missing
-   executable, access denied, non-zero exit, and empty output into `None`. Users see “could not be
-   queried” without knowing whether elevation, policy, or availability is responsible.
-10. **No explicit privacy/redaction policy.** Reports can contain hostname, IP and MAC addresses,
-    gateways, DNS configuration, OS details, service state, and security-product data. Add a warning,
-    document intended handling, and provide a redacted/share-safe export mode.
+### Scope
 
-### P2: maintainability and delivery
+- Add a physical-drive diagnostic on supported Windows systems using native storage facilities.
+- Report model, media type, bus type, operational status, and Windows health status when available.
+- Collect bounded reliability counters such as temperature, wear, and read/write error indicators
+  only when Windows and the device expose them reliably.
+- Separate explicit failure evidence from unsupported hardware, missing counters, permissions, and
+  vendor-specific omissions.
+- Add conservative, transparent deductions only for trustworthy unhealthy states. Any scoring
+  change must increment the scoring-policy version independently of the report schema.
+- Include physical-drive results in terminal, JSON, Markdown, and HTML reports and in redaction
+  review.
+- Add mocked status-branch tests plus a safe, opt-in Windows integration boundary test.
+- Document support differences for NVMe, SATA SSD, HDD, USB, virtual, and RAID-managed storage.
 
-11. **Tests concentrate on pure happy-path logic.** Missing coverage includes runner exception
-    isolation, registry errors, storage round-trips/corruption, CLI error paths, reporter escaping,
-    command timeout/error classification, and most Windows checks.
-12. **CI runs only on Ubuntu.** The most differentiated diagnostics are Windows-specific, yet they
-    are not executed in a Windows CI job. Add a Windows matrix entry and mock subprocess boundaries
-    for deterministic tests.
-13. **Local setup is easy to leave half-configured.** During this review, both local virtual
-    environments and the system Python lacked pytest/Ruff/Black/mypy, so the declared verification
-    suite could not be executed. Add a bootstrap task and a single `verify` command, and document how
-    to confirm that the development extras are installed.
-14. **Supported platform messaging is inconsistent.** Packaging says “OS Independent,” while much
-    of the product value and README detail is Windows-specific. Publish an explicit support matrix
-    per check and distinguish “supported,” “best effort,” and “unavailable.”
-15. **Dependency ranges have no upper bounds or lock/constraints strategy.** Reproducibility may
-    drift over time. Keep broad runtime metadata if desired, but use a tested constraints or lock
-    file for development and releases.
-16. **Version defaults are duplicated.** Package metadata, `Report.shuri_version`, and the storage
-    fallback can diverge (the fallback is still `0.1.0`). Use one version source and treat report
-    schema version separately from application version.
-17. **The reporter implementations duplicate formatting rules.** Byte formatting and complex-value
-    display differ across terminal, Markdown, and HTML. Establish normalized display helpers and
-    escaping tests so formats do not silently disagree.
+### Out of scope
 
-## Recommended fixes
+- Destructive self-tests, firmware changes, repair commands, or write benchmarks.
+- Vendor-specific tools or kernel drivers.
+- Predicting an exact remaining drive lifetime.
+- Linux `smartctl` integration until its dependency and privilege model are explicitly designed.
 
-### Milestone 1 — trustworthy assessments
+### Exit criteria
 
-- Add `schema_version`, `completed_checks`, `unknown_checks`, and `coverage_percent` to reports.
-- Define a label policy for incomplete assessments (for example, “100/100 — incomplete, 6/10
-  checks completed”) and test it at every boundary.
-- Move scoring weights and thresholds into a typed, versioned policy module; reject negative points
-  when constructing a deduction instead of only ignoring them during totals.
-- Make report loading validate data and handle corrupt/incompatible caches without a traceback.
-- Centralize the application and schema versions.
+- Shuri never labels unavailable SMART/reliability evidence as a healthy drive.
+- A known unhealthy Windows physical drive produces an actionable result with evidence and a
+  transparent deduction.
+- Unsupported and virtual storage degrade safely to `UNKNOWN` without reducing assessment score.
+- All output formats agree on the physical-drive result and redact any newly identified sensitive
+  fields.
+- The complete verifier passes locally and in the Windows/Ubuntu CI matrix, including wheel smoke
+  tests and the safe Windows integration boundary.
 
-**Exit criteria:** a 100 score cannot be mistaken for a complete clean bill of health; old, corrupt,
-and unsupported saved reports produce an actionable message; scoring policy has focused tests.
+## Later candidates
 
-### Milestone 2 — reliable daily use
+### 0.5.0 — actionable resource attribution
 
-- Store the latest report in the platform-appropriate per-user data directory and write atomically.
-- Add scan progress and show duration; evaluate bounded concurrency after measuring typical runs.
-- Return structured command failures (`timeout`, `not_found`, `access_denied`, `exit_code`) while
-  keeping raw command details out of normal reports.
-- Replace event-log text parsing with structured output and expose truncation.
-- Rework network checks as separately named probes and allow organization-specific endpoints.
-- Add `--redact` (or a share-safe default) and document exactly which fields it removes.
+- Identify bounded top CPU and memory consumers when a resource check is elevated.
+- Collect process names and resource values, never command lines or process environment data.
+- Define redaction and sharing behavior before enabling process evidence in exports.
 
-**Exit criteria:** commands behave consistently from any folder, failures explain the next action,
-and exported reports have an intentional privacy posture.
+### 0.6.0 — organization policy
 
-**Completed 2026-08-01:** latest-report storage now uses an atomic per-user path with legacy
-migration; command failures are classified without exposing raw command details; scans show
-progress and per-check duration; DNS and TCP probes are separate and configurable; event-log data
-is structured and reports truncation; and exports support explicit share-safe redaction. A real
-Windows scan completed all 10 checks in 21.1 seconds. Windows Update dominated at 13.1 seconds, so
-execution remains sequential to avoid adding concurrency complexity before it is necessary.
+- Configurable required-service sets and network probe targets.
+- Named, validated scoring profiles with explicit policy versions.
+- Import/export of policy files without remote management or silent configuration changes.
 
-### Milestone 3 — test and release confidence
+### Delivery and performance backlog
 
-- Add unit tests for registry, runner, storage, CLI validation, all status branches, and escaping.
-- Run CI on Windows and Ubuntu with Python 3.12; keep Windows commands mocked in unit tests and add a
-  small opt-in integration suite for a real Windows runner.
-- Provide one contributor bootstrap path and one verification command covering tests, lint, format,
-  and typing.
-- Add packaging smoke tests: build wheel, install into a clean environment, run `shuri version` and
-  a non-privileged command.
-- Publish the check/platform support matrix and report-schema compatibility policy.
-
-**Exit criteria:** the same clean verification succeeds locally and in both CI environments, and a
-built wheel is tested before release.
-
-**Implemented locally 2026-08-01:** focused registry, runner-isolation, storage-validation,
-CLI-error, status-outcome, and reporter-escaping tests are in place. `python scripts/verify.py`
-runs the complete quality suite, builds a wheel, installs it with dependencies into a temporary
-clean environment, and smoke-tests the installed CLI. CI now uses that command on Windows and
-Ubuntu, with an additional opt-in read-only Windows integration check. Platform support and schema
-compatibility contracts are published. The remaining exit check is the first successful remote CI
-matrix run after these changes are pushed.
-
-### Milestone 4 — capability expansion
-
-Only after the trust/reliability milestones, consider process-level CPU/memory attribution, disk
-SMART/health where safely available, richer update age/history, configurable service policies,
-trend comparison between reports, and organization-specific scoring profiles.
-
-**Completed 2026-08-02 (Shuri 0.3.0):** Shuri now retains the newest 50 local assessments, lists them
-with stable newest-first selection numbers, compares selected assessed reports across health score,
-coverage, diagnostic statuses, and selected resource/security metrics, tolerates damaged individual
-history entries, and provides explicit cleanup that retains the latest report. The existing report
-schema remains unchanged.
+- Measure per-check latency and consider bounded concurrency only when results remain deterministic.
+- Add macOS CI before promoting any macOS check from best effort to supported.
+- Evaluate a tested dependency-constraints strategy for reproducible development and releases.
+- Evaluate signed standalone Windows distribution after CLI behavior and update delivery are stable.
 
 ## Immediate next steps
 
-1. Validate the 0.3.0 history workflow on a real workstation and in the Windows/Ubuntu CI matrix.
-2. Measure scan latency before deciding whether bounded concurrency is justified.
-3. Choose the next capability: disk SMART health, configurable service policy, or richer update
-   history.
-
-## Verification note
-
-The original review found an incomplete local environment. The repository `venv` is now usable,
-and the complete Milestone 3 verifier passes locally on Windows with Python 3.12, including the
-clean wheel-install smoke test and the opt-in native integration check.
+1. Define the physical-drive result contract and exact `PASS`/`WARNING`/`FAIL`/`UNKNOWN` rules.
+2. Capture representative read-only Windows storage payloads for NVMe, SATA, USB, virtual, and
+   RAID-managed devices without committing machine identifiers.
+3. Build pure parsing and assessment functions around those fixtures before wiring native commands.
+4. Decide whether trustworthy failure states require scoring-policy version 2.

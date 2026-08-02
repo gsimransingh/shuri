@@ -143,6 +143,14 @@ very low system-drive space subtracts 15 points, and a pending reboot subtracts
 └── scripts/          # contributor and release verification
 ```
 
+## Roadmap
+
+Shuri 0.3.0 completes local assessment history and comparison. The planned 0.4.0 milestone adds
+read-only physical-drive health and SMART/reliability evidence on supported Windows storage while
+preserving Shuri's conservative `UNKNOWN` semantics. See the
+[current roadmap](docs/codebase-review-and-roadmap.md) for scope, exit criteria, limitations, and
+later candidates.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
