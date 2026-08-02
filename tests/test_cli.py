@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import typer
+from click import unstyle
 from typer.testing import CliRunner
 
 from shuri import cli
@@ -70,7 +71,7 @@ def test_history_clear_requires_explicit_confirmation() -> None:
     result = CliRunner().invoke(cli.app, ["history", "--clear"])
 
     assert result.exit_code != 0
-    assert "requires --clear --yes" in result.output
+    assert "requires --clear --yes" in unstyle(result.output)
 
 
 def test_compare_uses_selected_assessed_reports(monkeypatch: pytest.MonkeyPatch) -> None:
