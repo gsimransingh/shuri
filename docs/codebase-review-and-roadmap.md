@@ -1,6 +1,6 @@
 # Shuri roadmap
 
-Updated: 2026-08-02 (Shuri 0.4.0, unreleased)
+Updated: 2026-08-05 (Shuri 0.4.0)
 
 ## Product direction
 
