@@ -31,6 +31,43 @@ def _table_cell(value: object) -> str:
     return _markdown_text(value).replace("|", "\\|")
 
 
+def _append_process_attribution(lines: list[str], value: object) -> None:
+    if not isinstance(value, dict):
+        return
+    resource = str(value.get("resource", "resource"))
+    state = str(value.get("state", "unavailable")).title()
+    lines.extend(("", f"### Top {resource.upper()} contributors", "", f"State: {state}"))
+    contributors = value.get("contributors")
+    if not isinstance(contributors, list) or not contributors:
+        lines.extend(("", "No contributors were captured during the bounded sample."))
+        return
+    if resource == "cpu":
+        lines.extend(("", "| Process | PID | CPU % |", "| --- | ---: | ---: |"))
+        for item in contributors:
+            if isinstance(item, dict):
+                lines.append(
+                    f"| {_table_cell(item.get('process_name', 'Unavailable'))} | "
+                    f"{_table_cell(item.get('process_id', 'Unavailable'))} | "
+                    f"{_table_cell(item.get('cpu_percent', 'Unavailable'))} |"
+                )
+    else:
+        lines.extend(("", "| Process | PID | Memory | Share % |", "| --- | ---: | ---: | ---: |"))
+        for item in contributors:
+            if isinstance(item, dict):
+                memory_bytes = item.get("memory_bytes")
+                memory_value = (
+                    format_bytes(memory_bytes)
+                    if isinstance(memory_bytes, (int, float))
+                    else "Unavailable"
+                )
+                lines.append(
+                    f"| {_table_cell(item.get('process_name', 'Unavailable'))} | "
+                    f"{_table_cell(item.get('process_id', 'Unavailable'))} | "
+                    f"{_table_cell(memory_value)} | "
+                    f"{_table_cell(item.get('memory_percent', 'Unavailable'))} |"
+                )
+
+
 def render_markdown(report: Report) -> str:
     """Render a shareable Markdown health assessment."""
     lines = [
@@ -83,6 +120,7 @@ def render_markdown(report: Report) -> str:
                 f"{_table_cell(_display_metric(value, key))} |"
                 for key, value in scalar_metrics.items()
             )
+        _append_process_attribution(lines, result.metrics.get("process_attribution"))
         if result.findings:
             lines.extend(("", "### Findings", ""))
             lines.extend(f"- {_markdown_text(finding)}" for finding in result.findings)

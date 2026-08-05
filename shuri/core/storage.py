@@ -165,7 +165,7 @@ def load_latest_report() -> Report | None:
 def report_from_dict(data: dict[str, Any]) -> Report:
     """Rehydrate a report previously produced by :meth:`Report.to_dict`."""
     schema_version = _integer(data.get("schema_version", 0), "schema_version")
-    if schema_version not in {0, 1, 2, REPORT_SCHEMA_VERSION}:
+    if schema_version not in set(range(REPORT_SCHEMA_VERSION + 1)):
         raise ReportStorageError(
             f"Report schema {schema_version} is not supported by this Shuri version."
         )
@@ -244,6 +244,7 @@ def _result_from_dict(data: dict[str, Any]) -> CheckResult:
     deductions = data.get("deductions", [])
     if not isinstance(metrics, dict):
         raise ReportStorageError("Saved report contains invalid diagnostic metrics.")
+    _validate_process_attribution(metrics)
     if not isinstance(findings, (list, tuple)):
         raise ReportStorageError("Saved report contains invalid diagnostic findings.")
     if not isinstance(deductions, (list, tuple)):
@@ -319,3 +320,43 @@ def _number(value: object, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ReportStorageError(f"Saved report has an invalid {field_name}.")
     return float(value)
+
+
+def _validate_process_attribution(metrics: dict[str, Any]) -> None:
+    attribution = metrics.get("process_attribution")
+    if attribution is None:
+        return
+    if not isinstance(attribution, dict):
+        raise ReportStorageError("Saved report has invalid process attribution.")
+    resource = _string(attribution.get("resource"), "process attribution resource")
+    state = _string(attribution.get("state"), "process attribution state")
+    contributors = attribution.get("contributors")
+    if resource not in {"cpu", "memory"} or state not in {"complete", "partial", "unavailable"}:
+        raise ReportStorageError("Saved report has invalid process attribution.")
+    if not isinstance(contributors, list) or len(contributors) > 5:
+        raise ReportStorageError("Saved report has invalid process contributors.")
+    for contributor in contributors:
+        if not isinstance(contributor, dict):
+            raise ReportStorageError("Saved report has an invalid process contributor.")
+        process_name = _string(contributor.get("process_name"), "process name")
+        process_id = contributor.get("process_id")
+        if not process_name or len(process_name) > 128:
+            raise ReportStorageError("Saved report has an invalid process name.")
+        if not (
+            (isinstance(process_id, int) and not isinstance(process_id, bool) and process_id >= 0)
+            or process_id == "[redacted]"
+        ):
+            raise ReportStorageError("Saved report has an invalid process identifier.")
+        metric_name = "cpu_percent" if resource == "cpu" else "memory_bytes"
+        if _number(contributor.get(metric_name), f"process {metric_name}") < 0:
+            raise ReportStorageError("Saved report has an invalid process resource value.")
+        if resource == "memory":
+            memory_percent = _number(contributor.get("memory_percent"), "process memory_percent")
+            if not 0 <= memory_percent <= 100:
+                raise ReportStorageError("Saved report has an invalid process memory percentage.")
+    for key in ("sampled_processes", "skipped_processes"):
+        if _integer(attribution.get(key), f"process attribution {key}") < 0:
+            raise ReportStorageError("Saved report has invalid process attribution counts.")
+    _boolean(attribution.get("truncated"), "process attribution truncated")
+    if _number(attribution.get("duration_ms"), "process attribution duration_ms") < 0:
+        raise ReportStorageError("Saved report has invalid process attribution duration.")

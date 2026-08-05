@@ -39,6 +39,22 @@ def test_legacy_report_without_schema_version_is_migrated() -> None:
     assert restored.schema_version == REPORT_SCHEMA_VERSION
 
 
+def test_schema_three_report_remains_readable() -> None:
+    restored = report_from_dict(
+        {
+            "schema_version": 3,
+            "generated_at": "2026-08-01T00:00:00+00:00",
+            "hostname": "workstation-01",
+            "results": [],
+            "assessment": None,
+            "scan_duration_ms": 10.0,
+        }
+    )
+
+    assert restored.schema_version == REPORT_SCHEMA_VERSION
+    assert restored.scan_duration_ms == 10.0
+
+
 def test_legacy_assessment_coverage_is_derived() -> None:
     restored = report_from_dict(
         {
@@ -191,4 +207,76 @@ def test_nested_report_field_types_are_validated() -> None:
     report["results"][0]["findings"] = "not-a-list"
 
     with pytest.raises(ReportStorageError, match="findings"):
+        report_from_dict(report)
+
+
+def test_process_attribution_round_trip_is_validated() -> None:
+    attribution = {
+        "resource": "memory",
+        "state": "partial",
+        "contributors": [
+            {
+                "process_name": "worker.exe",
+                "process_id": 42,
+                "memory_bytes": 1_024,
+                "memory_percent": 2.5,
+            }
+        ],
+        "sampled_processes": 8,
+        "skipped_processes": 1,
+        "truncated": False,
+        "duration_ms": 4.0,
+    }
+    report = Report.create(
+        (
+            CheckResult(
+                "memory",
+                "Memory",
+                CheckStatus.WARNING,
+                "Low memory",
+                metrics={"process_attribution": attribution},
+            ),
+        ),
+        "workstation-01",
+    )
+
+    restored = report_from_dict(report.to_dict())
+
+    assert restored.results[0].metrics["process_attribution"] == attribution
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        {"state": "healthy"},
+        {"contributors": [{}]},
+        {"contributors": [{"process_name": "x", "process_id": -1, "cpu_percent": 1.0}]},
+        {"contributors": [{"process_name": "x", "process_id": 1, "cpu_percent": 1.0}] * 6},
+    ),
+)
+def test_invalid_process_attribution_is_rejected(mutation: dict[str, object]) -> None:
+    attribution: dict[str, object] = {
+        "resource": "cpu",
+        "state": "complete",
+        "contributors": [],
+        "sampled_processes": 1,
+        "skipped_processes": 0,
+        "truncated": False,
+        "duration_ms": 1.0,
+    }
+    attribution.update(mutation)
+    report = Report.create(
+        (
+            CheckResult(
+                "cpu",
+                "CPU",
+                CheckStatus.WARNING,
+                "Elevated",
+                metrics={"process_attribution": attribution},
+            ),
+        ),
+        "workstation-01",
+    ).to_dict()
+
+    with pytest.raises(ReportStorageError, match="process"):
         report_from_dict(report)

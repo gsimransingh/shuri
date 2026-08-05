@@ -28,10 +28,18 @@ view; its `show` action renders already-collected structured evidence as purpose
 Event-log detail is bounded to severity, timestamp, identifier, and provider and excludes message
 bodies. JSON remains the complete machine-readable representation.
 
+CPU and memory checks add process attribution only after their ordinary assessment is already
+`WARNING` or `FAIL`. The collector is bounded by process count, elapsed time, and five output rows.
+It excludes Shuri's own process and requests only name, ID, and the relevant resource counter.
+Access-denied, exited, and protected processes make evidence partial or unavailable without changing
+the pressure status or deductions. Concise terminal views summarize availability without printing
+process identity; detailed and exported views render the bounded evidence.
+
 Platform commands return a structured `CommandResult`. Checks translate stable failure categories
 with `command_failure_message`; raw commands, stdout, and stderr are not copied into findings.
 Exports pass through `shuri.core.privacy` only when redaction is explicitly requested, leaving the
-complete locally saved report unchanged.
+complete locally saved report unchanged. Process names and IDs are replaced in redacted exports;
+resource values remain available for troubleshooting.
 
 History files use the report schema and UTC generation time. The latest report remains independent,
 so clearing history does not break `shuri report`. Damaged history entries are skipped individually;

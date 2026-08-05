@@ -1,6 +1,6 @@
 # Platform support
 
-Shuri 0.4.0 is developed primarily for Windows. Portable checks also run on Linux and macOS, but
+Shuri 0.5.0 is developed primarily for Windows. Portable checks also run on Linux and macOS, but
 support is stated per check so an unavailable native facility is never mistaken for a failure.
 
 ## Support levels
@@ -14,8 +14,8 @@ support is stated per check so an unavailable native facility is never mistaken 
 | Check | Windows 10/11 | Ubuntu Linux | macOS | Notes |
 | --- | --- | --- | --- | --- |
 | System | Supported | Supported | Best effort | OS identity, uptime, memory, and system disk |
-| CPU | Supported | Supported | Best effort | Utilisation, topology, frequency, and load when exposed |
-| Memory | Supported | Supported | Best effort | Physical memory and swap through `psutil` |
+| CPU | Supported | Supported | Best effort | Utilisation and bounded attribution when elevated |
+| Memory | Supported | Supported | Best effort | Pressure and bounded attribution when elevated |
 | Disk | Supported | Supported | Best effort | Capacity for accessible mounted filesystems |
 | Physical drives | Supported | Unavailable | Unavailable | Windows state; optional counters are device-dependent |
 | Network | Supported | Supported, basic | Best effort, basic | Gateway and DNS inventory are Windows-only |
@@ -29,7 +29,8 @@ The Ubuntu column reflects the current GitHub Actions runner, not every Linux di
 remains best effort until it has dedicated CI and native integrations. Windows checks can be
 `UNKNOWN` when policy, permissions, hardware, services, storage controllers, or vendor drivers
 prevent collection. Missing drive counters are not interpreted as healthy evidence. See
-[physical-drive health](physical-drive-health.md).
+[physical-drive health](physical-drive-health.md) and
+[process-attribution privacy](process-attribution.md).
 
 ## Safe integration coverage
 

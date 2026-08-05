@@ -40,6 +40,12 @@ def _metric_value(key: str, value: object) -> str:
         succeeded = value.get("succeeded")
         if isinstance(succeeded, bool):
             return "Working" if succeeded else "Not working"
+        if key == "process_attribution":
+            contributors = value.get("contributors")
+            count = len(contributors) if isinstance(contributors, list) else 0
+            resource = str(value.get("resource", "resource")).upper()
+            state = str(value.get("state", "unavailable")).title()
+            return f"{count} {resource} contributor(s) captured ({state})"
         if key == "services":
             running = sum(
                 1
@@ -192,6 +198,47 @@ def _show_list_table(target: Console, key: str, entries: list[object]) -> bool:
     return True
 
 
+def _show_process_attribution(target: Console, attribution: dict[object, object]) -> None:
+    resource = str(attribution.get("resource", "resource"))
+    state = str(attribution.get("state", "unavailable")).title()
+    table = Table(
+        title=f"Top {resource.upper()} Contributors — {state}",
+        header_style="bold bright_blue",
+    )
+    table.add_column("Process")
+    table.add_column("PID", justify="right")
+    if resource == "cpu":
+        table.add_column("CPU %", justify="right")
+    else:
+        table.add_column("Memory", justify="right")
+        table.add_column("Share %", justify="right")
+    contributors = attribution.get("contributors")
+    if isinstance(contributors, list):
+        for contributor in contributors:
+            if not isinstance(contributor, dict):
+                continue
+            values = [
+                str(contributor.get("process_name", "Unavailable")),
+                str(contributor.get("process_id", "Unavailable")),
+            ]
+            if resource == "cpu":
+                values.append(str(contributor.get("cpu_percent", "Unavailable")))
+            else:
+                memory_bytes = contributor.get("memory_bytes")
+                values.extend(
+                    (
+                        (
+                            format_bytes(memory_bytes)
+                            if isinstance(memory_bytes, (int, float))
+                            else "Unavailable"
+                        ),
+                        str(contributor.get("memory_percent", "Unavailable")),
+                    )
+                )
+            table.add_row(*values)
+    target.print(table)
+
+
 def show_check_details(result: CheckResult, console: Console | None = None) -> None:
     """Display collected structured evidence as readable, purpose-built tables."""
     target = console or _CONSOLE
@@ -218,6 +265,9 @@ def show_check_details(result: CheckResult, console: Console | None = None) -> N
             rendered = True
         elif key in {"dns_probe", "tcp_probe"} and isinstance(value, dict):
             _show_mapping_table(target, _metric_label(key), value)
+            rendered = True
+        elif key == "process_attribution" and isinstance(value, dict):
+            _show_process_attribution(target, value)
             rendered = True
     if not rendered:
         target.print("[dim]No additional structured evidence is available for this check.[/dim]")

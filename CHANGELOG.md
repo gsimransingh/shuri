@@ -2,6 +2,34 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## 0.5.0 — Unreleased
+
+### Added
+
+- Add privacy-bounded top-process attribution when CPU utilisation or memory pressure is already
+  elevated, limited to five contributors and a bounded collection window.
+- Record only process name, process ID, and the relevant CPU or resident-memory value; never request
+  command lines, environments, open files, or process memory contents.
+- Add readable process tables to `cpu show`, `memory show`, `doctor show`, Markdown, and HTML while
+  keeping concise terminal views free of process identity.
+- Add report schema 4 with validated optional process-attribution evidence while retaining schema
+  0–3 reader compatibility.
+- Add deterministic coverage for collection limits, ordering, permission failures, process races,
+  healthy-path suppression, scoring isolation, redaction, storage, comparison, and reporters.
+
+### Changed
+
+- Redacted exports now replace process names and IDs while preserving non-identifying resource
+  values and the original diagnostic outcome.
+- Report comparison deliberately ignores ephemeral process identity and attribution samples.
+
+### Verified
+
+- Healthy CPU and memory results remain free of process-attribution metrics.
+- Attribution failures cannot change a warning or failure to healthy and never change deductions.
+- The wheel builds and installs in a clean Python 3.12 environment; real Windows integration and
+  standalone executable smoke tests pass.
+
 ## 0.4.0 — 2026-08-05
 
 ### Added

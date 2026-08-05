@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import psutil
 
+from shuri.checks.processes import attach_process_attribution, collect_memory_process_attribution
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 
@@ -68,4 +69,7 @@ def check_memory() -> CheckResult:
     """Collect physical memory and swap usage."""
     memory = psutil.virtual_memory()
     swap = psutil.swap_memory()
-    return build_memory_result(memory.total, memory.available, memory.used, swap.total, swap.used)
+    result = build_memory_result(memory.total, memory.available, memory.used, swap.total, swap.used)
+    if result.status in {CheckStatus.WARNING, CheckStatus.FAIL}:
+        return attach_process_attribution(result, collect_memory_process_attribution())
+    return result

@@ -14,6 +14,8 @@ _SENSITIVE_KEYS = {
     "dns_servers",
     "hostname",
     "mac_address",
+    "process_id",
+    "process_name",
     "target",
     "user",
     "username",

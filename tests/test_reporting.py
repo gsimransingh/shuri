@@ -181,3 +181,70 @@ def test_terminal_summarises_services_and_defender_plainly() -> None:
     assert "1 running of 2 monitored" in rendered
     assert "Enabled; real-time protection on" in rendered
     assert "detail(s) available" not in rendered
+
+
+def _attributed_report() -> Report:
+    return Report.create(
+        (
+            CheckResult(
+                "cpu",
+                "CPU",
+                CheckStatus.WARNING,
+                "CPU utilisation is elevated.",
+                metrics={
+                    "process_attribution": {
+                        "resource": "cpu",
+                        "state": "complete",
+                        "contributors": [
+                            {
+                                "process_name": "worker.exe",
+                                "process_id": 123,
+                                "cpu_percent": 75.0,
+                            }
+                        ],
+                        "sampled_processes": 10,
+                        "skipped_processes": 0,
+                        "truncated": False,
+                        "duration_ms": 100.0,
+                    }
+                },
+            ),
+        ),
+        "workstation-01",
+    )
+
+
+def test_concise_terminal_hides_process_identity() -> None:
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check(_attributed_report().results[0], console)
+
+    rendered = console.export_text()
+    assert "1 CPU contributor(s) captured (Complete)" in rendered
+    assert "worker.exe" not in rendered
+    assert "123" not in rendered
+
+
+def test_terminal_details_render_process_attribution() -> None:
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check_details(_attributed_report().results[0], console)
+
+    rendered = console.export_text()
+    assert "Top CPU Contributors" in rendered
+    assert "worker.exe" in rendered
+    assert "123" in rendered
+    assert "75.0" in rendered
+
+
+def test_export_reporters_render_process_attribution_readably() -> None:
+    report = _attributed_report()
+
+    markdown = render_markdown(report)
+    html = render_html(report)
+
+    assert "### Top CPU contributors" in markdown
+    assert "| worker.exe | 123 | 75.0 |" in markdown
+    assert "worker.exe" in html
+    assert "<th>CPU %</th>" in html
+    assert "&#34;process_name&#34;" not in html

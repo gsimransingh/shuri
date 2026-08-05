@@ -90,7 +90,23 @@ _TEMPLATE = """<!doctype html>
     <table><tbody>
       {% for key, value in result.metrics.items() %}
       <tr><th>{{ key.replace('_', ' ').title() }}</th>
-        <td>{% if value is mapping or value is sequence and value is not string %}
+        <td>{% if key == "process_attribution" and value is mapping %}
+          <strong>{{ value.state | title }}</strong>
+          {% if value.contributors %}
+          <table><thead><tr><th>Process</th><th>PID</th>
+            {% if value.resource == "cpu" %}<th>CPU %</th>
+            {% else %}<th>Memory</th><th>Share %</th>{% endif %}
+          </tr></thead><tbody>
+            {% for item in value.contributors %}
+            <tr><td>{{ item.process_name }}</td><td>{{ item.process_id }}</td>
+              {% if value.resource == "cpu" %}<td>{{ item.cpu_percent }}</td>
+              {% else %}<td>{{ item.memory_bytes | format_bytes }}</td>
+                <td>{{ item.memory_percent }}</td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody></table>
+          {% else %}<span class="muted">No contributors captured.</span>{% endif %}
+        {% elif value is mapping or value is sequence and value is not string %}
           <code>{{ value | tojson(indent=2) }}</code>{% else %}{{ value }}{% endif %}</td></tr>
       {% endfor %}
     </tbody></table>

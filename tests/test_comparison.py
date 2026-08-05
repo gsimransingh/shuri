@@ -70,3 +70,33 @@ def test_comparison_requires_assessed_reports() -> None:
 
     with pytest.raises(ValueError, match="health assessments"):
         compare_reports(report, report)
+
+
+def test_comparison_ignores_ephemeral_process_identity() -> None:
+    def cpu_result(process_name: str, process_id: int) -> CheckResult:
+        return CheckResult(
+            "cpu",
+            "CPU",
+            CheckStatus.WARNING,
+            "Elevated",
+            metrics={
+                "utilisation_percent": 90.0,
+                "process_attribution": {
+                    "contributors": [
+                        {
+                            "process_name": process_name,
+                            "process_id": process_id,
+                            "cpu_percent": 80.0,
+                        }
+                    ]
+                },
+            },
+        )
+
+    older = _assessed_report(datetime(2026, 8, 1, tzinfo=UTC), (cpu_result("one", 1),))
+    newer = _assessed_report(datetime(2026, 8, 2, tzinfo=UTC), (cpu_result("two", 2),))
+
+    comparison = compare_reports(older, newer)
+
+    assert comparison.metric_changes == ()
+    assert comparison.status_changes == ()

@@ -9,8 +9,9 @@ EDR, or antivirus product.
 
 ## What it checks
 
-- CPU utilisation, core count, frequency, and system load when available
-- Memory and swap pressure
+- CPU utilisation, core count, frequency, and system load when available, with bounded top-process
+  attribution only when utilisation is elevated
+- Memory and swap pressure, with bounded top-process attribution only when pressure is detected
 - Disk capacity and free space
 - Physical-drive health, operational state, and reliability counters when exposed by Windows
 - Network adapters, MAC addresses, default gateway, DNS configuration, and reachability
@@ -88,6 +89,8 @@ shuri doctor -f json -o report.json
 shuri doctor -f json --redact -o report-to-share.json
 shuri doctor -f markdown
 shuri cpu                          # one diagnostic
+shuri cpu show                     # top CPU contributors when utilisation is elevated
+shuri memory show                  # top memory contributors when pressure is detected
 shuri disk show                    # every detected filesystem
 shuri drives                       # physical-drive reliability
 shuri drives show                  # detailed physical-drive evidence
@@ -115,6 +118,8 @@ overview, then add `show` when troubleshooting requires the collected evidence:
 
 | Command | Detailed evidence |
 | --- | --- |
+| `shuri cpu show` | Up to five top CPU contributors after an elevated CPU result |
+| `shuri memory show` | Up to five top resident-memory contributors after memory pressure |
 | `shuri disk show` | Detected filesystems, capacity, free space, and usage |
 | `shuri drives show` | Physical-drive model, type, bus, health, size, temperature, and wear |
 | `shuri network show` | DNS/TCP probes and detected adapters with state and addresses |
@@ -123,17 +128,23 @@ overview, then add `show` when troubleshooting requires the collected evidence:
 | `shuri eventlogs show` | Up to 50 recent System events with time, severity, ID, and provider |
 | `shuri doctor show` | Structured evidence from every check in one assessment |
 
-Event message bodies are deliberately excluded because they can contain usernames, file paths, and
-other workstation-specific data. `services show` covers Shuri's monitored service set rather than
-inventorying every installed Windows service. JSON exports remain the complete machine-readable
-representation of the evidence Shuri collects.
+Process attribution is collected only after CPU or memory is already elevated. It is bounded to
+five contributors and records only process name, process ID, and the relevant CPU or resident-memory
+value. It never requests command lines, environment variables, open files, or process memory
+contents. Event message bodies are also deliberately excluded because they can contain usernames,
+file paths, and other workstation-specific data. `services show` covers Shuri's monitored service
+set rather than inventorying every installed Windows service. JSON exports remain the complete
+machine-readable representation of the evidence Shuri collects.
 
 Shuri is cross-platform where possible. Windows-specific checks gracefully
 report as unavailable on other platforms instead of treating that as a fault.
 Windows capacity, update, and antivirus checks use native Windows data when available;
 an unavailable data source is reported as unknown rather than scored as a failure.
-See the [platform support matrix](docs/support-matrix.md), [physical-drive policy](docs/physical-drive-health.md),
-[reproducible build guide](docs/reproducible-builds.md), and [report-schema policy](docs/report-schema.md).
+See the [platform support matrix](docs/support-matrix.md),
+[process-attribution privacy policy](docs/process-attribution.md),
+[physical-drive policy](docs/physical-drive-health.md),
+[reproducible build guide](docs/reproducible-builds.md), and
+[report-schema policy](docs/report-schema.md).
 
 Full scans show live progress. CPU is sampled before Shuri starts its heavier collectors, then the
 remaining independent diagnostics run through a bounded four-worker pool. Reports include each
@@ -157,12 +168,13 @@ provide their own targets with `SHURI_DNS_PROBE_HOST`, `SHURI_CONNECTIVITY_HOST`
 Local latest and historical reports remain complete so support diagnostics retain their evidence.
 They never leave the workstation unless the user exports or otherwise shares them. Before sharing
 an export, pass `--redact`. Redacted exports replace the report and metric hostnames, gateways,
-probe targets, usernames, and MAC addresses, and remove collected IP-address and DNS-server lists.
-They retain health status, timings, hardware facts, deductions, and non-identifying service and
-security state. Shuri does not collect file contents, passwords, browser history, or command-line
-contents. Physical-drive reports include model, type, capacity, and reliability state but do not
-request serial numbers. Review every report before sharing it because organization-specific check
-output may still be sensitive.
+probe targets, usernames, MAC addresses, process names, and process IDs, and remove collected
+IP-address and DNS-server lists. They retain process resource values, health status, timings,
+hardware facts, deductions, and non-identifying service and security state. Shuri does not collect
+file contents, passwords, browser history, process command lines, environments, open-file paths, or
+memory contents. Physical-drive reports include model, type, capacity, and reliability state but do
+not request serial numbers. Review every report before sharing it because organization-specific
+check output may still be sensitive.
 
 ## Health score
 
@@ -192,9 +204,9 @@ very low system-drive space subtracts 15 points, and a pending reboot subtracts
 
 ## Roadmap
 
-Shuri 0.4.0 adds read-only physical-drive health, reproducible builds, bounded scan concurrency,
-and a smoke-tested standalone Windows executable while preserving conservative `UNKNOWN` semantics.
-The next planned milestone focuses on privacy-bounded resource attribution. See the
+Shuri 0.5.0 adds privacy-bounded CPU and memory attribution without changing healthy results or
+scoring. The next planned milestone focuses on organization policy: configurable service and
+network targets plus named scoring profiles. See the
 [current roadmap](docs/codebase-review-and-roadmap.md) for scope, exit criteria, limitations, and
 later candidates.
 
