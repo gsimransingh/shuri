@@ -192,7 +192,7 @@ def test_attribution_never_changes_status_or_scoring() -> None:
 
 
 def test_healthy_cpu_does_not_collect_processes(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cpu.psutil, "cpu_freq", lambda: None)
+    monkeypatch.setattr(cpu.psutil, "cpu_freq", lambda: None, raising=False)
     monkeypatch.setattr(cpu.psutil, "cpu_count", lambda logical: 8 if logical else 4)
     monkeypatch.setattr(cpu.psutil, "cpu_percent", lambda interval: 10.0)
     monkeypatch.setattr(cpu.platform, "processor", lambda: "Test CPU")
@@ -210,7 +210,7 @@ def test_healthy_cpu_does_not_collect_processes(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_elevated_cpu_collects_processes(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cpu.psutil, "cpu_freq", lambda: None)
+    monkeypatch.setattr(cpu.psutil, "cpu_freq", lambda: None, raising=False)
     monkeypatch.setattr(cpu.psutil, "cpu_count", lambda logical: 8 if logical else 4)
     monkeypatch.setattr(cpu.psutil, "cpu_percent", lambda interval: 90.0)
     monkeypatch.setattr(cpu.platform, "processor", lambda: "Test CPU")

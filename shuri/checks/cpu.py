@@ -54,7 +54,8 @@ def build_cpu_result(
 
 def check_cpu() -> CheckResult:
     """Collect a short CPU usage sample and hardware basics."""
-    frequency = psutil.cpu_freq()
+    frequency_collector = getattr(psutil, "cpu_freq", None)
+    frequency = frequency_collector() if frequency_collector else None
     snapshot = CpuSnapshot(
         model=platform.processor() or os.environ.get("PROCESSOR_IDENTIFIER", ""),
         architecture=platform.machine(),
