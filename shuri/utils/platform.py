@@ -10,27 +10,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
-class OperatingSystem(StrEnum):
-    """Operating systems with native Shuri collectors."""
-
-    WINDOWS = "windows"
-    LINUX = "linux"
-    MACOS = "macos"
-    OTHER = "other"
-
-
-def operating_system() -> OperatingSystem:
-    """Return the normalized active operating system."""
-    return {
-        "Windows": OperatingSystem.WINDOWS,
-        "Linux": OperatingSystem.LINUX,
-        "Darwin": OperatingSystem.MACOS,
-    }.get(platform.system(), OperatingSystem.OTHER)
-
-
 def is_windows() -> bool:
     """Return whether Shuri is running on Windows."""
-    return operating_system() is OperatingSystem.WINDOWS
+    return platform.system() == "Windows"
 
 
 def system_drive() -> str:

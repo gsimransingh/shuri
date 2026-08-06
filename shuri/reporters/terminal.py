@@ -12,7 +12,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
 
-from shuri.core.comparison import ReportComparison
 from shuri.models import CheckResult, CheckStatus, Report
 from shuri.utils.helpers import format_bytes
 
@@ -40,12 +39,6 @@ def _metric_value(key: str, value: object) -> str:
         succeeded = value.get("succeeded")
         if isinstance(succeeded, bool):
             return "Working" if succeeded else "Not working"
-        if key == "process_attribution":
-            contributors = value.get("contributors")
-            count = len(contributors) if isinstance(contributors, list) else 0
-            resource = str(value.get("resource", "resource")).upper()
-            state = str(value.get("state", "unavailable")).title()
-            return f"{count} {resource} contributor(s) captured ({state})"
         if key == "services":
             running = sum(
                 1
@@ -198,47 +191,6 @@ def _show_list_table(target: Console, key: str, entries: list[object]) -> bool:
     return True
 
 
-def _show_process_attribution(target: Console, attribution: dict[object, object]) -> None:
-    resource = str(attribution.get("resource", "resource"))
-    state = str(attribution.get("state", "unavailable")).title()
-    table = Table(
-        title=f"Top {resource.upper()} Contributors — {state}",
-        header_style="bold bright_blue",
-    )
-    table.add_column("Process")
-    table.add_column("PID", justify="right")
-    if resource == "cpu":
-        table.add_column("CPU %", justify="right")
-    else:
-        table.add_column("Memory", justify="right")
-        table.add_column("Share %", justify="right")
-    contributors = attribution.get("contributors")
-    if isinstance(contributors, list):
-        for contributor in contributors:
-            if not isinstance(contributor, dict):
-                continue
-            values = [
-                str(contributor.get("process_name", "Unavailable")),
-                str(contributor.get("process_id", "Unavailable")),
-            ]
-            if resource == "cpu":
-                values.append(str(contributor.get("cpu_percent", "Unavailable")))
-            else:
-                memory_bytes = contributor.get("memory_bytes")
-                values.extend(
-                    (
-                        (
-                            format_bytes(memory_bytes)
-                            if isinstance(memory_bytes, (int, float))
-                            else "Unavailable"
-                        ),
-                        str(contributor.get("memory_percent", "Unavailable")),
-                    )
-                )
-            table.add_row(*values)
-    target.print(table)
-
-
 def show_check_details(result: CheckResult, console: Console | None = None) -> None:
     """Display collected structured evidence as readable, purpose-built tables."""
     target = console or _CONSOLE
@@ -263,22 +215,8 @@ def show_check_details(result: CheckResult, console: Console | None = None) -> N
         elif key == "defender" and isinstance(value, dict):
             _show_mapping_table(target, "Microsoft Defender", value)
             rendered = True
-        elif key == "security_controls" and isinstance(value, dict):
-            controls = Table(title="Native Security Controls", header_style="bold bright_blue")
-            controls.add_column("Control")
-            controls.add_column("State")
-            for control, evidence in value.items():
-                state = (
-                    evidence[0] if isinstance(evidence, (list, tuple)) and evidence else evidence
-                )
-                controls.add_row(_metric_label(str(control)), str(state).title())
-            target.print(controls)
-            rendered = True
         elif key in {"dns_probe", "tcp_probe"} and isinstance(value, dict):
             _show_mapping_table(target, _metric_label(key), value)
-            rendered = True
-        elif key == "process_attribution" and isinstance(value, dict):
-            _show_process_attribution(target, value)
             rendered = True
     if not rendered:
         target.print("[dim]No additional structured evidence is available for this check.[/dim]")
@@ -353,98 +291,6 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
 def show_exported(path: Path, console: Console | None = None) -> None:
     """Confirm an exported report path."""
     (console or _CONSOLE).print(f"[green]Report written to[/green] {path}")
-
-
-def show_history(reports: tuple[Report, ...], console: Console | None = None) -> None:
-    """Display retained reports newest first with stable selection numbers."""
-    target = console or _CONSOLE
-    table = Table(title="Shuri — Report History", header_style="bold bright_blue")
-    table.add_column("#", justify="right")
-    table.add_column("Generated")
-    table.add_column("Score", justify="right")
-    table.add_column("Coverage", justify="right")
-    table.add_column("Host")
-    table.add_column("Version")
-    for index, report in enumerate(reports, start=1):
-        assessment = report.assessment
-        table.add_row(
-            str(index),
-            report.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            str(assessment.score) if assessment else "Not assessed",
-            f"{assessment.coverage_percent:.1f}%" if assessment else "—",
-            report.hostname,
-            report.shuri_version,
-        )
-    target.print(table)
-    target.print("[dim]Use 'shuri compare --older N --newer N' to compare assessments.[/dim]")
-
-
-def show_comparison(comparison: ReportComparison, console: Console | None = None) -> None:
-    """Display score, coverage, and diagnostic changes between assessments."""
-    target = console or _CONSOLE
-    older_assessment = comparison.older.assessment
-    newer_assessment = comparison.newer.assessment
-    if older_assessment is None or newer_assessment is None:  # Defensive rendering boundary.
-        raise ValueError("Comparison reports must contain assessments.")
-    score_sign = "+" if comparison.score_change > 0 else ""
-    coverage_sign = "+" if comparison.coverage_change > 0 else ""
-    target.print(
-        Panel.fit(
-            f"Older: {comparison.older.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')} — "
-            f"{older_assessment.score}/100\n"
-            f"Newer: {comparison.newer.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')} — "
-            f"{newer_assessment.score}/100\n"
-            f"Score change: [bold]{score_sign}{comparison.score_change}[/bold]\n"
-            f"Coverage change: {coverage_sign}{comparison.coverage_change:.1f}%",
-            title="Shuri — Health Comparison",
-            border_style="bright_blue",
-        )
-    )
-    if comparison.status_changes:
-        table = Table(title="Diagnostic status changes", header_style="bold bright_blue")
-        table.add_column("Check", style="bold")
-        table.add_column("Older")
-        table.add_column("Newer")
-        for change in comparison.status_changes:
-            table.add_row(change.title, _status_text(change.older), _status_text(change.newer))
-        target.print(table)
-    else:
-        target.print("[green]No diagnostic statuses changed.[/green]")
-    if comparison.added_checks:
-        target.print(f"Added checks: {', '.join(comparison.added_checks)}")
-    if comparison.removed_checks:
-        target.print(f"Removed checks: {', '.join(comparison.removed_checks)}")
-    if comparison.metric_changes:
-        metrics = Table(title="Metric trends", header_style="bold bright_blue")
-        metrics.add_column("Metric")
-        metrics.add_column("Older", justify="right")
-        metrics.add_column("Newer", justify="right")
-        metrics.add_column("Change", justify="right")
-        for metric_change in comparison.metric_changes:
-            if metric_change.unit == "bytes":
-                older = format_bytes(metric_change.older)
-                newer = format_bytes(metric_change.newer)
-                delta = format_bytes(abs(metric_change.delta))
-                delta = f"{'+' if metric_change.delta > 0 else '-'}{delta}"
-            else:
-                suffix = metric_change.unit
-                older = f"{metric_change.older:g}{suffix}"
-                newer = f"{metric_change.newer:g}{suffix}"
-                delta = f"{metric_change.delta:+g}{suffix}"
-            metrics.add_row(metric_change.label, older, newer, delta)
-        target.print(metrics)
-
-
-def show_history_cleared(count: int, console: Console | None = None) -> None:
-    """Confirm local history cleanup without implying the latest report was deleted."""
-    (console or _CONSOLE).print(
-        f"[green]Cleared {count} historical report(s).[/green] The latest report was retained."
-    )
-
-
-def show_error(message: str, console: Console | None = None) -> None:
-    """Render an error consistently without leaking presentation into checks."""
-    (console or _CONSOLE).print(f"[red]{message}[/red]")
 
 
 @contextmanager

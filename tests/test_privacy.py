@@ -45,31 +45,15 @@ def test_redaction_removes_workstation_and_network_identifiers() -> None:
         assert sensitive not in rendered
 
 
-def test_redaction_removes_process_identity_but_preserves_resource_evidence() -> None:
+def test_redaction_removes_nested_workstation_identifiers() -> None:
     report = Report.create(
         (
             CheckResult(
-                "cpu",
-                "CPU",
+                "network",
+                "Network",
                 CheckStatus.WARNING,
                 "CPU is elevated.",
-                metrics={
-                    "process_attribution": {
-                        "resource": "cpu",
-                        "state": "complete",
-                        "contributors": [
-                            {
-                                "process_name": "private-workload.exe",
-                                "process_id": 4242,
-                                "cpu_percent": 73.5,
-                            }
-                        ],
-                        "sampled_processes": 10,
-                        "skipped_processes": 0,
-                        "truncated": False,
-                        "duration_ms": 100.0,
-                    }
-                },
+                metrics={"owner": {"username": "private-user", "hostname": "private-host"}},
             ),
         ),
         "private-host",
@@ -78,8 +62,7 @@ def test_redaction_removes_process_identity_but_preserves_resource_evidence() ->
     redacted = redact_report(report)
     rendered = render_json(redacted)
 
-    assert "private-workload.exe" not in rendered
-    assert "4242" not in rendered
-    assert rendered.count("[redacted]") == 3
-    assert '"cpu_percent": 73.5' in rendered
+    assert "private-user" not in rendered
+    assert "private-host" not in rendered
+    assert rendered.count("[redacted]") >= 2
     assert redacted.results[0].status is CheckStatus.WARNING

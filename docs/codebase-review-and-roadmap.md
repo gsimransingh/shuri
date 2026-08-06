@@ -1,69 +1,20 @@
-# Shuri roadmap
+# Shuri scope
 
-Updated: 2026-08-06 (Shuri 0.5.3)
+Shuri is a lightweight Windows workstation-readiness CLI. Its value is fast, explainable evidence
+for a person sitting at one machine.
 
-## Product direction
+## Keep
 
-Shuri is a transparent, privacy-conscious workstation health assessment tool for IT support,
-systems, and security teams. It combines scattered system signals into an explainable report
-without requiring an agent, account, cloud service, or telemetry backend. It should remain
-explainable, honest about uncertainty, local-first, read-only, bounded, and useful in first response.
+- Read-only checks with a clear support action.
+- Transparent scoring and optional redacted JSON export.
+- A small Windows-first CI and standalone build.
+- Portable runtime behavior that does not claim Windows-native evidence elsewhere.
 
-## Current baseline — 0.5.3
+## Avoid
 
-- Eleven diagnostics cover CPU, memory, filesystems, physical drives, network, battery, system,
-  native services, system updates, security posture, and recent system logs.
-- Elevated CPU and memory results include bounded, privacy-governed process attribution without
-  changing healthy results or scoring.
-- Physical-drive assessment separates explicit Windows failure evidence from missing counters.
-- CPU is sampled before a bounded four-worker scan; reports record true wall-clock duration.
-- Scoring is transparent, coverage-aware, and independently policy-versioned.
-- Terminal, JSON, Markdown, and HTML reporters share one typed model and explicit redaction.
-- Latest-report and 50-entry history storage are atomic, validated, and compatible with schemas 0–4.
-- The Python 3.12 dependency graph is constrained and Dependabot monitors dependency updates.
-- CI verifies Windows, Ubuntu, and macOS, wheel installation, installed commands, and smoke-tested
-  native single-file executables.
+- Agents, telemetry, accounts, dashboards, remote control, or background monitoring.
+- Local report history, comparison, report databases, and multiple report formats.
+- Configuration systems and policy engines unless they become essential to a concrete readiness check.
+- Platform-specific expansion that cannot be maintained and tested.
 
-## Completed milestones
-
-| Milestone | Release | Outcome |
-| --- | --- | --- |
-| Trustworthy assessments | 0.2.1 | Coverage, validation, versioned policy |
-| Reliable daily use | 0.2.2 | Atomic storage, progress, privacy, Windows probes |
-| Test and release confidence | 0.2.3–0.2.4 | Cross-platform CI, packaging and integration |
-| Local history and comparison | 0.3.0 | Retention, cleanup, status changes, metric trends |
-| Storage and delivery reliability | 0.4.0 | Drive health, concurrency, pinned inputs, executable |
-| Privacy-bounded resource attribution | 0.5.0 | Top contributors, redaction, bounded collection |
-| Supported desktop platforms | 0.5.1 | Windows, Ubuntu, and macOS CI and native executables |
-| Native security posture | 0.5.2 | Linux and macOS platform controls alongside Defender |
-| Native storage evidence | 0.5.3 | Linux and macOS inventory and available SMART health |
-
-## Current limitations
-
-- The executable is unsigned, so Windows reputation controls may warn or block it.
-- Windows Update is usually the longest diagnostic and can dominate total duration.
-- Drive counters vary across NVMe, SATA, USB, RAID, virtual storage, and vendor drivers; unavailable
-  evidence remains `UNKNOWN`.
-- Linux distributions without systemd or apt, dnf, or pacman require additional native adapters.
-- Linux SMART health depends on optional `smartctl` availability and device access.
-- Service expectations and scoring thresholds are not user-configurable.
-- Shuri has no GUI, fleet dashboard, remote management, or background monitoring.
-
-## Next milestone — organization policy (planned for 0.6.0)
-
-- Configurable service sets and network targets.
-- Named, validated scoring profiles with explicit policy versions.
-- Validated policy import/export without silent changes.
-
-### Delivery and platform backlog
-
-- Code-sign release executables and define trustworthy update delivery.
-- Expand Linux adapters only when each distribution can be exercised in CI.
-- Continue profiling Windows Update without weakening evidence or timeout boundaries.
-
-## Immediate next steps
-
-1. Define a validated organization-policy document and compatibility rules.
-2. Make service sets and network targets configurable without unsafe defaults.
-3. Specify named scoring-profile validation and explicit policy-version behavior.
-4. Add policy import/export fixtures before connecting configuration to live checks.
+The next work should improve reliability or clarity of an existing Windows check, not add breadth.

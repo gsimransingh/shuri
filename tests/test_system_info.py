@@ -43,11 +43,11 @@ def test_system_check_includes_workstation_facts(monkeypatch: pytest.MonkeyPatch
     assert result.metrics["python_version"] == "3.12.10"
 
 
-def test_system_info_command_is_available(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_system_command_is_available(monkeypatch: pytest.MonkeyPatch) -> None:
     selected: list[str] = []
-    monkeypatch.setattr(cli, "_single_check", selected.append)
+    monkeypatch.setattr(cli, "_run_single_command", lambda name, _action: selected.append(name))
 
-    result = CliRunner().invoke(cli.app, ["system-info"])
+    result = CliRunner().invoke(cli.app, ["system"])
 
     assert result.exit_code == 0
     assert selected == ["system"]

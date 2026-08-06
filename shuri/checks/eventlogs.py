@@ -7,12 +7,7 @@ from typing import Any
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import (
-    OperatingSystem,
-    command_failure_message,
-    operating_system,
-    run_powershell,
-)
+from shuri.utils.platform import command_failure_message, is_windows, run_powershell
 
 _MAX_EVENTS = 50
 _LEVEL_NAMES = {1: "Critical", 2: "Error", 3: "Warning"}
@@ -56,20 +51,14 @@ def parse_event_details(payload: str) -> tuple[dict[str, object], ...]:
 
 
 def check_event_logs() -> CheckResult:
-    """Summarise native critical, error, and warning events from the last day."""
-    active_os = operating_system()
-    if active_os is OperatingSystem.LINUX:
-        from shuri.checks.native_unix import check_linux_logs
-
-        return check_linux_logs()
-    if active_os is OperatingSystem.MACOS:
-        from shuri.checks.native_unix import check_macos_logs
-
-        return check_macos_logs()
-    if active_os is not OperatingSystem.WINDOWS:
-        from shuri.checks.native_unix import unsupported_native_check
-
-        return unsupported_native_check("eventlogs", "System Logs", active_os)
+    """Summarise critical, error, and warning System events from the last day."""
+    if not is_windows():
+        return CheckResult(
+            name="eventlogs",
+            title="Event Logs",
+            status=CheckStatus.UNKNOWN,
+            summary="Windows event-log diagnostics are not available on this platform.",
+        )
     script = (
         "$ErrorActionPreference = 'Stop'; try { "
         "$events = @(Get-WinEvent -FilterHashtable "

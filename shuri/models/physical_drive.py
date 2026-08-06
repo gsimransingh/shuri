@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class PhysicalDriveSnapshot:
-    """Read-only health evidence exposed by a native storage stack."""
+    """Read-only health evidence exposed by Windows Storage Management."""
 
     device_id: str
     model: str

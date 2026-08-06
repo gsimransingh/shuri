@@ -8,13 +8,7 @@ from typing import Any
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.physical_drive import PhysicalDriveSnapshot
-from shuri.utils.platform import (
-    CommandResult,
-    OperatingSystem,
-    command_failure_message,
-    operating_system,
-    run_powershell,
-)
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_powershell
 
 _FAIL_HEALTH = {"unhealthy", "critical", "failed", "failure"}
 _WARN_HEALTH = {"warning", "degraded"}
@@ -151,7 +145,6 @@ def _drive_state(drive: PhysicalDriveSnapshot) -> CheckStatus:
 
 def build_physical_drive_result(
     drives: tuple[PhysicalDriveSnapshot, ...],
-    platform_name: str = "Windows",
 ) -> CheckResult:
     """Assess trustworthy drive states without inferring health from missing counters."""
     states = tuple(_drive_state(drive) for drive in drives)
@@ -190,9 +183,7 @@ def build_physical_drive_result(
         )
     elif drives and len(unknown) == len(drives):
         status = CheckStatus.UNKNOWN
-        findings.append(
-            f"{platform_name} did not expose a trustworthy health state for any physical drive."
-        )
+        findings.append("Windows did not expose a trustworthy health state for any physical drive.")
     elif unknown:
         status = CheckStatus.WARNING
         findings.append(
@@ -233,19 +224,15 @@ def build_physical_drive_result(
 
 def check_physical_drives() -> CheckResult:
     """Collect and assess physical-drive health without changing storage state."""
-    active_os = operating_system()
-    if active_os is OperatingSystem.LINUX:
-        from shuri.checks.native_unix import check_linux_drives
-
-        return check_linux_drives()
-    if active_os is OperatingSystem.MACOS:
-        from shuri.checks.native_unix import check_macos_drives
-
-        return check_macos_drives()
-    if active_os is not OperatingSystem.WINDOWS:
-        from shuri.checks.native_unix import unsupported_native_check
-
-        return unsupported_native_check("physical_drives", "Physical Drives", active_os)
+    if not is_windows():
+        return CheckResult(
+            name="physical_drives",
+            title="Physical Drives",
+            status=CheckStatus.UNKNOWN,
+            summary=(
+                "Physical-drive reliability diagnostics are currently available only on Windows."
+            ),
+        )
     drives, result = _physical_drive_snapshots()
     if not result.succeeded:
         return CheckResult(

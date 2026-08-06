@@ -1,9 +1,9 @@
-"""Build and smoke-test a native single-file Shuri executable."""
+"""Build and smoke-test a single-file Windows Shuri executable."""
 
 from __future__ import annotations
 
 import argparse
-import platform
+import os
 import subprocess
 import sys
 import tempfile
@@ -12,23 +12,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def executable_name(system: str | None = None) -> str:
-    """Return the native executable filename for the build platform."""
-    return "shuri.exe" if (system or platform.system()) == "Windows" else "shuri"
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=ROOT / "dist" / "standalone",
-        help="Directory that receives the native Shuri executable.",
+        help="Directory that receives shuri.exe.",
     )
     arguments = parser.parse_args()
+    if os.name != "nt":
+        parser.error("The standalone executable must be built on Windows.")
     output = arguments.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    executable = output / executable_name()
+    executable = output / "shuri.exe"
     with tempfile.TemporaryDirectory(prefix="shuri-standalone-") as temporary:
         temporary_path = Path(temporary)
         subprocess.run(

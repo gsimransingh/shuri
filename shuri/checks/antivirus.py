@@ -9,13 +9,7 @@ from typing import Any
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import (
-    CommandResult,
-    OperatingSystem,
-    command_failure_message,
-    operating_system,
-    run_powershell,
-)
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_powershell
 
 
 def _defender_status() -> tuple[dict[str, Any] | None, CommandResult]:
@@ -76,20 +70,14 @@ def _signature_age_days(value: object) -> int | None:
 
 
 def check_antivirus() -> CheckResult:
-    """Assess native platform security posture without altering it."""
-    active_os = operating_system()
-    if active_os is OperatingSystem.LINUX:
-        from shuri.checks.native_unix import check_linux_security
-
-        return check_linux_security()
-    if active_os is OperatingSystem.MACOS:
-        from shuri.checks.native_unix import check_macos_security
-
-        return check_macos_security()
-    if active_os is not OperatingSystem.WINDOWS:
-        from shuri.checks.native_unix import unsupported_native_check
-
-        return unsupported_native_check("antivirus", "Security Posture", active_os)
+    """Assess the available Microsoft Defender posture without altering it."""
+    if not is_windows():
+        return CheckResult(
+            name="antivirus",
+            title="Antivirus",
+            status=CheckStatus.UNKNOWN,
+            summary="Microsoft Defender diagnostics are only available on Windows.",
+        )
     status_data, defender_query = _defender_status()
     if status_data is None:
         third_party_products = _third_party_antivirus_products()

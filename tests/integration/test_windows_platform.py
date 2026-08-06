@@ -19,7 +19,7 @@ pytestmark = [
 
 
 def test_read_only_powershell_boundary_on_windows() -> None:
-    result = run_powershell("$PSVersionTable.PSVersion.ToString()")
+    result = run_powershell("$PSVersionTable.PSVersion.ToString()", timeout=15)
 
     assert result.succeeded
     assert result.output.strip()

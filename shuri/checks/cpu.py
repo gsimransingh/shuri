@@ -7,7 +7,6 @@ import platform
 
 import psutil
 
-from shuri.checks.processes import attach_process_attribution, collect_cpu_process_attribution
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.cpu import CpuSnapshot
@@ -69,7 +68,4 @@ def check_cpu() -> CheckResult:
         load_average = get_load_average() if get_load_average else None
     except OSError:
         load_average = None
-    result = build_cpu_result(snapshot, load_average)
-    if result.status in {CheckStatus.WARNING, CheckStatus.FAIL}:
-        return attach_process_attribution(result, collect_cpu_process_attribution())
-    return result
+    return build_cpu_result(snapshot, load_average)

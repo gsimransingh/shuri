@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import (
-    CommandResult,
-    OperatingSystem,
-    command_failure_message,
-    operating_system,
-    run_command,
-)
+from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_command
 
 _SERVICES = {
     "wuauserv": "Windows Update",
@@ -31,20 +25,14 @@ def _service_state(name: str) -> tuple[str, CommandResult]:
 
 
 def check_services() -> CheckResult:
-    """Inspect native support services without changing service state."""
-    active_os = operating_system()
-    if active_os is OperatingSystem.LINUX:
-        from shuri.checks.native_unix import check_linux_services
-
-        return check_linux_services()
-    if active_os is OperatingSystem.MACOS:
-        from shuri.checks.native_unix import check_macos_services
-
-        return check_macos_services()
-    if active_os is not OperatingSystem.WINDOWS:
-        from shuri.checks.native_unix import unsupported_native_check
-
-        return unsupported_native_check("services", "System Services", active_os)
+    """Inspect selected Windows support services without changing service state."""
+    if not is_windows():
+        return CheckResult(
+            name="services",
+            title="Windows Services",
+            status=CheckStatus.UNKNOWN,
+            summary="Windows service diagnostics are not available on this platform.",
+        )
     queries = {name: _service_state(name) for name in _SERVICES}
     states = {name: state for name, (state, _) in queries.items()}
     unavailable = all(state == "unavailable" for state in states.values())

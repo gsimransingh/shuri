@@ -2,6 +2,15 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## 0.5.4 — 2026-08-06
+
+### Changed
+
+- Re-focus Shuri on lightweight Windows workstation readiness.
+- Remove report history, comparison, HTML and Markdown output, and automatic process attribution.
+- Keep JSON export and explicit redaction for the one supported sharing workflow.
+- Reduce CI and standalone delivery to Windows, while retaining portable runtime checks on Linux and macOS.
+
 ## 0.5.3 — 2026-08-06
 
 ### Added
