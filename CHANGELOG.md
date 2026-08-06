@@ -2,7 +2,7 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
-## 0.5.0 — Unreleased
+## 0.5.0 — 2026-08-06
 
 ### Added
 
