@@ -16,7 +16,7 @@ py -3.12 -m venv .venv
 The verifier checks formatting, linting, typing, tests, package build, clean wheel installation,
 and the installed `shuri` command.
 
-## Build the Windows executable
+## Build a native executable
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -c requirements\constraints-py312.txt -e ".[standalone]"
@@ -24,13 +24,16 @@ and the installed `shuri` command.
 .\dist\standalone\shuri.exe doctor
 ```
 
-The script creates `dist/standalone/shuri.exe`, then runs version and CPU smoke tests. CI uploads a
-successful Windows build as a workflow artifact.
+On Linux and macOS, create the environment with `python3 -m venv .venv` and use
+`.venv/bin/python` in the commands above. The script creates `dist/standalone/shuri.exe` on Windows
+or `dist/standalone/shuri` on Linux and macOS, then runs version and CPU smoke tests. CI uploads a
+successful native build for each operating system as a workflow artifact.
 
-The executable is unsigned. Smart App Control or reputation protection may block an unsigned local
-build; that is a distribution-trust limitation, not a diagnostic result. Build from a trusted
-checkout, retain provenance, and do not bypass organization policy.
+The executables are unsigned. Windows Smart App Control, macOS Gatekeeper, or other reputation
+protection may block an unsigned local build; that is a distribution-trust limitation, not a
+diagnostic result. Build from a trusted checkout, retain provenance, and do not bypass organization
+policy.
 
 Constraints improve repeatability but do not make builds bit-for-bit identical across operating
-systems or toolchains. Dependency updates should be reviewed, constrained, then verified on both CI
+systems or toolchains. Dependency updates should be reviewed, constrained, then verified on all CI
 platforms.

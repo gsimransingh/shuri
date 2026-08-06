@@ -13,11 +13,15 @@ EDR, or antivirus product.
   attribution only when utilisation is elevated
 - Memory and swap pressure, with bounded top-process attribution only when pressure is detected
 - Disk capacity and free space
-- Physical-drive health, operational state, and reliability counters when exposed by Windows
+- Physical-drive inventory and native health evidence when exposed by the operating system
 - Network adapters, MAC addresses, default gateway, DNS configuration, and reachability
 - Battery charge plus capacity health on supported Windows laptops
 - Operating-system metadata and uptime
-- Key Windows services, pending reboot/update state, antivirus posture, and recent event-log activity
+- Native system services, pending restart/update state, security posture, and recent system-log activity
+
+System, CPU, memory, filesystem, network, battery, service, update, security, log, and drive checks
+automatically select native Windows, Linux, or macOS evidence. A check reports `UNKNOWN` without a
+score penalty only when trustworthy evidence cannot be obtained.
 
 Every deduction in the health score is shown in the report.
 The report also shows the exact calculation: `100 - total deductions = health score`.
@@ -53,10 +57,11 @@ shuri doctor
 Using a virtual environment keeps Shuri and its `shuri` command isolated from other Python
 installations on the workstation.
 
-### Build a standalone Windows executable
+### Build a standalone executable
 
-The standalone build does not require Python on the target workstation. Build it on Windows from a
-trusted checkout; the resulting unsigned executable is written to `dist/standalone/shuri.exe`:
+The standalone build does not require Python on the target workstation. Build it on the target
+operating system from a trusted checkout; the executable is written to `dist/standalone/shuri.exe`
+on Windows or `dist/standalone/shuri` on Linux and macOS:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -64,9 +69,10 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe scripts\build_standalone.py
 ```
 
-The build script creates a single-file executable and smoke-tests `shuri.exe version` and
-`shuri.exe cpu`. CI builds the same executable on Windows and publishes it as a workflow artifact.
-Release binaries are not yet code-signed; review the source and verify provenance before deployment.
+On Linux and macOS, use `python3 -m venv .venv` and `.venv/bin/python` in the same commands. The
+build script creates a native single-file executable and smoke-tests its `version` and `cpu`
+commands. CI publishes builds for Windows, Linux, and macOS as workflow artifacts. Release binaries
+are not yet code-signed; review the source and verify provenance before deployment.
 
 For contributors:
 
@@ -96,9 +102,9 @@ shuri drives                       # physical-drive reliability
 shuri drives show                  # detailed physical-drive evidence
 shuri network
 shuri network show                 # adapters, probes, and configuration
-shuri services show                # monitored service states
-shuri antivirus show               # Microsoft Defender settings
-shuri eventlogs show               # recent event metadata
+shuri services show                # native monitored service states
+shuri antivirus show               # native security posture
+shuri eventlogs show               # recent native system-log metadata
 shuri doctor show                  # expanded evidence for a full assessment
 shuri system-info                  # OS and workstation information
 shuri report --format html         # export the last saved assessment
@@ -109,7 +115,8 @@ shuri history --clear --yes        # clear history but retain the latest report
 shuri version
 ```
 
-From a source checkout, `python -m shuri system-info` runs the local code directly.
+After installation, always invoke Shuri through the `shuri` command, including from a source
+checkout: `shuri system-info`.
 
 ### Concise and detailed views
 
@@ -123,23 +130,24 @@ overview, then add `show` when troubleshooting requires the collected evidence:
 | `shuri disk show` | Detected filesystems, capacity, free space, and usage |
 | `shuri drives show` | Physical-drive model, type, bus, health, size, temperature, and wear |
 | `shuri network show` | DNS/TCP probes and detected adapters with state and addresses |
-| `shuri services show` | The important Windows services Shuri monitors and their current state |
-| `shuri antivirus show` | Individual Microsoft Defender protection settings |
-| `shuri eventlogs show` | Up to 50 recent System events with time, severity, ID, and provider |
+| `shuri services show` | Important native services and their current state |
+| `shuri antivirus show` | Defender on Windows or native Linux/macOS security controls |
+| `shuri eventlogs show` | Up to 50 recent native system events with metadata but no message body |
 | `shuri doctor show` | Structured evidence from every check in one assessment |
 
 Process attribution is collected only after CPU or memory is already elevated. It is bounded to
 five contributors and records only process name, process ID, and the relevant CPU or resident-memory
 value. It never requests command lines, environment variables, open files, or process memory
 contents. Event message bodies are also deliberately excluded because they can contain usernames,
-file paths, and other workstation-specific data. `services show` covers Shuri's monitored service
-set rather than inventorying every installed Windows service. JSON exports remain the complete
+file paths, and other workstation-specific data. `services show` covers Shuri's monitored native
+service set rather than inventorying every installed service. JSON exports remain the complete
 machine-readable representation of the evidence Shuri collects.
 
-Shuri is cross-platform where possible. Windows-specific checks gracefully
-report as unavailable on other platforms instead of treating that as a fault.
-Windows capacity, update, and antivirus checks use native Windows data when available;
-an unavailable data source is reported as unknown rather than scored as a failure.
+Shuri automatically detects Windows, Linux, or macOS and routes each diagnostic to native read-only
+collectors. Windows uses SCM, Windows Update, Defender, Event Log, and Storage Management; Linux
+uses systemd, a detected package manager, native security controls, journald, `lsblk`, and optional
+SMART evidence; macOS uses launchd, Software Update, platform security controls, unified logging,
+and `diskutil`. An unavailable data source is reported as unknown rather than scored as a failure.
 See the [platform support matrix](docs/support-matrix.md),
 [process-attribution privacy policy](docs/process-attribution.md),
 [physical-drive policy](docs/physical-drive-health.md),

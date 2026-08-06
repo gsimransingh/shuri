@@ -16,11 +16,13 @@ overlap, so adding them would not describe user-visible time. CPU runs before he
 Shuri's own PowerShell and Python work does not create a misleading utilisation alert.
 
 To add a check, implement a no-argument function returning `CheckResult`, then add it to
-`default_registry()` in `shuri.core.registry`. Keep platform calls behind `shuri.utils.platform` and
-return `UNKNOWN` when the platform does not support the check.
+`default_registry()` in `shuri.core.registry`. Platform-neutral entry points detect the normalized
+operating system and dispatch to native Windows, Linux, or macOS collectors. Keep commands behind
+`shuri.utils.platform` and return `UNKNOWN` only when trustworthy native evidence is unavailable.
 
-Physical-drive collection uses read-only Windows storage interfaces. Explicit native unhealthy
-states can affect scoring; absent counters, unsupported controllers, and ambiguous states remain
+Physical-drive collection uses read-only Windows Storage Management, Linux block-device and
+optional SMART interfaces, or macOS Disk Utility interfaces. Explicit native unhealthy states can
+affect scoring; absent tools or counters, unsupported controllers, and ambiguous states remain
 unknown. The model deliberately omits serial numbers.
 
 Terminal presentation uses progressive disclosure. A diagnostic command provides a compact health

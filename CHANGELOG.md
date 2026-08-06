@@ -2,6 +2,44 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## 0.5.3 — 2026-08-06
+
+### Added
+
+- Add Linux physical-drive inventory through `lsblk` and optional SMART health through `smartctl`.
+- Add macOS physical-drive inventory and built-in SMART status through `diskutil`.
+- Preserve trustworthy native unhealthy drive evidence while keeping missing SMART access unknown.
+- Exercise installed `shuri` commands and native collectors on Ubuntu, Debian, Fedora, Arch Linux,
+  Windows, and macOS in CI.
+
+## 0.5.2 — 2026-08-06
+
+### Added
+
+- Add Linux security posture from available firewall and AppArmor or SELinux controls.
+- Add macOS security posture covering Gatekeeper, System Integrity Protection, FileVault, and the
+  application firewall.
+
+### Changed
+
+- Generalize the existing `antivirus` report slot to a native Security Posture diagnostic while
+  preserving its stable key and stored-report compatibility.
+
+## 0.5.1 — 2026-08-06
+
+### Added
+
+- Add macOS to the complete Python 3.12 verification matrix alongside Windows and Ubuntu.
+- Build, smoke-test, and publish native single-file executables for Windows, Linux, and macOS.
+- Automatically dispatch services, updates, and recent system logs to Windows, Linux, or macOS
+  native read-only collectors.
+
+### Changed
+
+- Promote portable macOS system, CPU, memory, disk, network, and battery checks to supported status.
+- Keep platform-native checks explicitly `UNKNOWN` where trustworthy read-only evidence is not yet
+  implemented, so missing capabilities do not reduce the health score.
+
 ## 0.5.0 — 2026-08-06
 
 ### Added

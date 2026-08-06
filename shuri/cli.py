@@ -289,25 +289,25 @@ def system_info(action: Annotated[str | None, typer.Argument()] = None) -> None:
 
 @app.command()
 def services(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Windows service diagnostics only."""
+    """Run native system-service diagnostics only."""
     _run_single_command("services", action)
 
 
 @app.command()
 def updates(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Windows update diagnostics only."""
+    """Run native system-update diagnostics only."""
     _run_single_command("updates", action)
 
 
 @app.command()
 def antivirus(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Microsoft Defender diagnostics only."""
+    """Run native security-posture diagnostics only."""
     _run_single_command("antivirus", action)
 
 
 @app.command(name="eventlogs")
 def event_logs(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run recent Windows event-log diagnostics only."""
+    """Run recent native system-log diagnostics only."""
     _run_single_command("eventlogs", action)
 
 

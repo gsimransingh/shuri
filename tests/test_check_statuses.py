@@ -7,7 +7,7 @@ import pytest
 from shuri.checks import eventlogs, network
 from shuri.models import CheckStatus
 from shuri.models.network import AdapterSnapshot
-from shuri.utils.platform import CommandFailure, CommandResult
+from shuri.utils.platform import CommandFailure, CommandResult, OperatingSystem
 
 
 @pytest.mark.parametrize(
@@ -78,7 +78,7 @@ def test_event_log_status_outcomes(
     expected: CheckStatus,
 ) -> None:
     payload = json.dumps([{"Level": level} for level in levels])
-    monkeypatch.setattr(eventlogs, "is_windows", lambda: True)
+    monkeypatch.setattr(eventlogs, "operating_system", lambda: OperatingSystem.WINDOWS)
     monkeypatch.setattr(
         eventlogs, "run_powershell", lambda *_args, **_kwargs: CommandResult(payload)
     )
@@ -87,7 +87,7 @@ def test_event_log_status_outcomes(
 
 
 def test_event_log_command_failure_is_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(eventlogs, "is_windows", lambda: True)
+    monkeypatch.setattr(eventlogs, "operating_system", lambda: OperatingSystem.WINDOWS)
     monkeypatch.setattr(
         eventlogs,
         "run_powershell",

@@ -1,6 +1,6 @@
 # Shuri roadmap
 
-Updated: 2026-08-06 (Shuri 0.5.0)
+Updated: 2026-08-06 (Shuri 0.5.3)
 
 ## Product direction
 
@@ -9,10 +9,10 @@ systems, and security teams. It combines scattered system signals into an explai
 without requiring an agent, account, cloud service, or telemetry backend. It should remain
 explainable, honest about uncertainty, local-first, read-only, bounded, and useful in first response.
 
-## Current baseline — 0.5.0
+## Current baseline — 0.5.3
 
 - Eleven diagnostics cover CPU, memory, filesystems, physical drives, network, battery, system,
-  Windows services, Windows Update, antivirus, and event logs.
+  native services, system updates, security posture, and recent system logs.
 - Elevated CPU and memory results include bounded, privacy-governed process attribution without
   changing healthy results or scoring.
 - Physical-drive assessment separates explicit Windows failure evidence from missing counters.
@@ -21,8 +21,8 @@ explainable, honest about uncertainty, local-first, read-only, bounded, and usef
 - Terminal, JSON, Markdown, and HTML reporters share one typed model and explicit redaction.
 - Latest-report and 50-entry history storage are atomic, validated, and compatible with schemas 0–4.
 - The Python 3.12 dependency graph is constrained and Dependabot monitors dependency updates.
-- CI verifies Windows and Ubuntu, wheel installation, installed commands, and a smoke-tested
-  single-file Windows executable.
+- CI verifies Windows, Ubuntu, and macOS, wheel installation, installed commands, and smoke-tested
+  native single-file executables.
 
 ## Completed milestones
 
@@ -34,6 +34,9 @@ explainable, honest about uncertainty, local-first, read-only, bounded, and usef
 | Local history and comparison | 0.3.0 | Retention, cleanup, status changes, metric trends |
 | Storage and delivery reliability | 0.4.0 | Drive health, concurrency, pinned inputs, executable |
 | Privacy-bounded resource attribution | 0.5.0 | Top contributors, redaction, bounded collection |
+| Supported desktop platforms | 0.5.1 | Windows, Ubuntu, and macOS CI and native executables |
+| Native security posture | 0.5.2 | Linux and macOS platform controls alongside Defender |
+| Native storage evidence | 0.5.3 | Linux and macOS inventory and available SMART health |
 
 ## Current limitations
 
@@ -41,7 +44,8 @@ explainable, honest about uncertainty, local-first, read-only, bounded, and usef
 - Windows Update is usually the longest diagnostic and can dominate total duration.
 - Drive counters vary across NVMe, SATA, USB, RAID, virtual storage, and vendor drivers; unavailable
   evidence remains `UNKNOWN`.
-- Linux covers portable checks only; macOS remains best effort without dedicated CI.
+- Linux distributions without systemd or apt, dnf, or pacman require additional native adapters.
+- Linux SMART health depends on optional `smartctl` availability and device access.
 - Service expectations and scoring thresholds are not user-configurable.
 - Shuri has no GUI, fleet dashboard, remote management, or background monitoring.
 
@@ -54,8 +58,7 @@ explainable, honest about uncertainty, local-first, read-only, bounded, and usef
 ### Delivery and platform backlog
 
 - Code-sign release executables and define trustworthy update delivery.
-- Add macOS CI before promoting macOS behavior to supported.
-- Evaluate Linux drive health after defining dependency and privilege requirements.
+- Expand Linux adapters only when each distribution can be exercised in CI.
 - Continue profiling Windows Update without weakening evidence or timeout boundaries.
 
 ## Immediate next steps
