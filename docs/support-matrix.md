@@ -1,7 +1,7 @@
 # Platform support
 
-Shuri 0.5.3 is tested on Windows, macOS, Ubuntu, Debian, Fedora, and Arch Linux. Support is stated
-per check so an unavailable native facility is never mistaken for a failure.
+Shuri 0.5.3 is tested on Windows, macOS, Ubuntu 24.04, Debian 13, Fedora 42, and Arch Linux. Support
+is stated per check so an unavailable native facility is never mistaken for a failure.
 
 ## Support levels
 

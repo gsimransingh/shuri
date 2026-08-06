@@ -63,8 +63,8 @@ jobs:
           - distribution: Ubuntu 24.04
             image: ubuntu:24.04
             family: debian
-          - distribution: Debian 12
-            image: debian:12
+          - distribution: Debian 13
+            image: debian:13
             family: debian
           - distribution: Fedora 42
             image: fedora:42
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v7
       - name: Run installed-command and native-collector checks
         run: >-
-          docker run --rm
+          timeout 10m docker run --rm
           --volume "${{ github.workspace }}:/workspace"
           --workdir /workspace
           "${{ matrix.image }}"
