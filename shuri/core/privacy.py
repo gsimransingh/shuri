@@ -11,9 +11,11 @@ _REDACTED = "[redacted]"
 _SENSITIVE_KEYS = {
     "addresses",
     "default_gateway",
+    "device_id",
     "dns_servers",
     "hostname",
     "mac_address",
+    "name",
     "process_id",
     "process_name",
     "target",

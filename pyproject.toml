@@ -34,7 +34,6 @@ dev = [
   "ruff>=0.5.0",
   "types-psutil",
 ]
-standalone = ["pyinstaller==6.21.0"]
 
 [project.scripts]
 shuri = "shuri.cli:app"

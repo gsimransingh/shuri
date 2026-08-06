@@ -53,18 +53,6 @@ shuri version
 
 `doctor` does not retain local history. A JSON export is created only when you request one.
 
-## Standalone Windows executable
-
-Build a local `shuri.exe` without requiring Python on the target workstation:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -c requirements\constraints-py312.txt -e ".[standalone]"
-.\.venv\Scripts\python.exe scripts\build_standalone.py
-.\dist\standalone\shuri.exe doctor
-```
-
-The executable is unsigned; follow your organization’s software-trust policy.
-
 ## Privacy
 
 Shuri collects only the evidence needed for the checks. It does not collect file contents,

@@ -20,11 +20,12 @@ def test_redaction_removes_workstation_and_network_identifiers() -> None:
                     "tcp_probe": {"target": "internal.example", "succeeded": True},
                     "adapters": [
                         {
-                            "name": "Ethernet",
+                            "name": "Contoso VPN",
                             "addresses": ["192.168.1.5"],
                             "mac_address": "00:11:22:33:44:55",
-                        }
+                        },
                     ],
+                    "physical_drives": [{"device_id": "disk-unique-id", "model": "Test NVMe"}],
                 },
             ),
         ),
@@ -41,8 +42,11 @@ def test_redaction_removes_workstation_and_network_identifiers() -> None:
         "internal.example",
         "192.168.1.5",
         "00:11:22:33:44:55",
+        "Contoso VPN",
+        "disk-unique-id",
     ):
         assert sensitive not in rendered
+    assert "Test NVMe" in rendered
 
 
 def test_redaction_removes_nested_workstation_identifiers() -> None:
