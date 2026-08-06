@@ -1,7 +1,7 @@
 # Platform support
 
-Shuri 0.5.0 is developed primarily for Windows. Portable checks also run on Linux and macOS, but
-support is stated per check so an unavailable native facility is never mistaken for a failure.
+Shuri 0.5.3 is tested on Windows, macOS, Ubuntu, Debian, Fedora, and Arch Linux. Support is stated
+per check so an unavailable native facility is never mistaken for a failure.
 
 ## Support levels
 
@@ -13,27 +13,30 @@ support is stated per check so an unavailable native facility is never mistaken 
 
 | Check | Windows 10/11 | Ubuntu Linux | macOS | Notes |
 | --- | --- | --- | --- | --- |
-| System | Supported | Supported | Best effort | OS identity, uptime, memory, and system disk |
-| CPU | Supported | Supported | Best effort | Utilisation and bounded attribution when elevated |
-| Memory | Supported | Supported | Best effort | Pressure and bounded attribution when elevated |
-| Disk | Supported | Supported | Best effort | Capacity for accessible mounted filesystems |
-| Physical drives | Supported | Unavailable | Unavailable | Windows state; optional counters are device-dependent |
-| Network | Supported | Supported, basic | Best effort, basic | Gateway and DNS inventory are Windows-only |
-| Battery | Supported when present | Best effort | Best effort | Capacity health is Windows-only |
-| Services | Supported | Unavailable | Unavailable | Selected Windows services only |
-| Updates | Supported | Unavailable | Unavailable | Windows Update and pending restart only |
-| Antivirus | Supported | Unavailable | Unavailable | Defender plus third-party product discovery |
-| Event logs | Supported | Unavailable | Unavailable | Windows System log, newest 50 matching events |
+| System | Supported | Supported | Supported | OS identity, uptime, memory, and system disk |
+| CPU | Supported | Supported | Supported | Utilisation and bounded attribution when elevated |
+| Memory | Supported | Supported | Supported | Pressure and bounded attribution when elevated |
+| Disk | Supported | Supported | Supported | Capacity for accessible mounted filesystems |
+| Physical drives | Supported | Supported when exposed | Supported when exposed | Native inventory; SMART evidence varies by device, driver, tool, and access |
+| Network | Supported | Supported, basic | Supported, basic | Gateway and DNS inventory are Windows-only |
+| Battery | Supported when present | Supported when exposed | Supported when exposed | Capacity health is Windows-only |
+| Services | Supported | Supported on systemd | Supported | Windows SCM, systemd, or launchd |
+| Updates | Supported | Supported for apt/dnf/pacman | Supported | Windows Update, native package manager, or Software Update |
+| Security posture | Supported | Supported when controls are exposed | Supported | Defender or native firewall/platform protections |
+| System logs | Supported | Supported on systemd | Supported | Bounded metadata from Windows Event Log, journald, or unified logging |
 
-The Ubuntu column reflects the current GitHub Actions runner, not every Linux distribution. macOS
-remains best effort until it has dedicated CI and native integrations. Windows checks can be
-`UNKNOWN` when policy, permissions, hardware, services, storage controllers, or vendor drivers
+Linux distribution adapters are exercised in Ubuntu, Debian, Fedora, and Arch containers; systemd
+host behavior is additionally exercised on the Ubuntu runner. The macOS column reflects the current
+GitHub-hosted macOS runner. Native checks can be `UNKNOWN` when
+policy, permissions, hardware, services, tools, storage controllers, or vendor drivers
 prevent collection. Missing drive counters are not interpreted as healthy evidence. See
 [physical-drive health](physical-drive-health.md) and
 [process-attribution privacy](process-attribution.md).
 
 ## Safe integration coverage
 
-Unit tests mock platform-command boundaries. Windows CI additionally runs opt-in, read-only
-PowerShell boundary checks, including physical-drive discovery. They never change services,
-updates, registry data, security settings, storage state, or event logs.
+Every supported operating system runs the complete verification workflow, builds a wheel, tests an
+installed command in a clean environment, and builds and smoke-tests its native standalone
+executable. CI also runs opt-in, read-only native collector integration checks. Windows exercises
+PowerShell boundaries and physical-drive discovery; Linux and macOS execute their native adapters.
+They never change services, updates, registry data, security settings, storage state, or logs.

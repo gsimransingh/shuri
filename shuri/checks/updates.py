@@ -6,7 +6,14 @@ import json
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_powershell
+from shuri.utils.platform import (
+    CommandResult,
+    OperatingSystem,
+    command_failure_message,
+    is_windows,
+    operating_system,
+    run_powershell,
+)
 
 
 def _registry_key_exists(path: str) -> bool:
@@ -73,14 +80,20 @@ def available_update_count() -> tuple[int | None, CommandResult | None]:
 
 
 def check_updates() -> CheckResult:
-    """Assess pending reboot state and available Windows Updates without changing state."""
-    if not is_windows():
-        return CheckResult(
-            name="updates",
-            title="Windows Update",
-            status=CheckStatus.UNKNOWN,
-            summary="Windows Update diagnostics are not available on this platform.",
-        )
+    """Assess native update and pending-restart state without changing it."""
+    active_os = operating_system()
+    if active_os is OperatingSystem.LINUX:
+        from shuri.checks.native_unix import check_linux_updates
+
+        return check_linux_updates()
+    if active_os is OperatingSystem.MACOS:
+        from shuri.checks.native_unix import check_macos_updates
+
+        return check_macos_updates()
+    if active_os is not OperatingSystem.WINDOWS:
+        from shuri.checks.native_unix import unsupported_native_check
+
+        return unsupported_native_check("updates", "System Updates", active_os)
     reboot_pending = pending_reboot()
     update_count, update_failure = available_update_count()
     deductions: list[ScoreDeduction] = []

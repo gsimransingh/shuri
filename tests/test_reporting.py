@@ -183,6 +183,29 @@ def test_terminal_summarises_services_and_defender_plainly() -> None:
     assert "detail(s) available" not in rendered
 
 
+def test_terminal_details_render_native_security_controls() -> None:
+    result = CheckResult(
+        name="antivirus",
+        title="Security Posture",
+        status=CheckStatus.PASS,
+        summary="Healthy.",
+        metrics={
+            "security_controls": {
+                "gatekeeper": ["enabled", "assessments enabled"],
+                "firewall": ["disabled", "state = 0"],
+            }
+        },
+    )
+    console = Console(record=True, width=120, color_system=None)
+
+    show_check_details(result, console)
+
+    rendered = console.export_text()
+    assert "Native Security Controls" in rendered
+    assert "Gatekeeper" in rendered
+    assert "Enabled" in rendered
+
+
 def _attributed_report() -> Report:
     return Report.create(
         (

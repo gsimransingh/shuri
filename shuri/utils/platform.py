@@ -10,9 +10,27 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
+class OperatingSystem(StrEnum):
+    """Operating systems with native Shuri collectors."""
+
+    WINDOWS = "windows"
+    LINUX = "linux"
+    MACOS = "macos"
+    OTHER = "other"
+
+
+def operating_system() -> OperatingSystem:
+    """Return the normalized active operating system."""
+    return {
+        "Windows": OperatingSystem.WINDOWS,
+        "Linux": OperatingSystem.LINUX,
+        "Darwin": OperatingSystem.MACOS,
+    }.get(platform.system(), OperatingSystem.OTHER)
+
+
 def is_windows() -> bool:
     """Return whether Shuri is running on Windows."""
-    return platform.system() == "Windows"
+    return operating_system() is OperatingSystem.WINDOWS
 
 
 def system_drive() -> str:
@@ -69,6 +87,7 @@ def run_command(command: Sequence[str], timeout: float = 5.0) -> CommandResult:
         return CommandResult(output=completed.stdout)
     denied = completed.returncode == 5 or "access denied" in completed.stderr.casefold()
     return CommandResult(
+        output=completed.stdout,
         failure=CommandFailure.ACCESS_DENIED if denied else CommandFailure.EXIT_CODE,
         exit_code=completed.returncode,
     )
@@ -92,7 +111,7 @@ def command_failure_message(subject: str, result: CommandResult) -> str:
         CommandFailure.TIMEOUT: f"{subject} timed out; try again in a few minutes.",
         CommandFailure.NOT_FOUND: f"{subject} is unavailable on this system.",
         CommandFailure.ACCESS_DENIED: f"{subject} was denied; run Shuri with sufficient access.",
-        CommandFailure.EXIT_CODE: f"{subject} failed; verify the related Windows component.",
+        CommandFailure.EXIT_CODE: f"{subject} failed; verify the related system component.",
         CommandFailure.OS_ERROR: f"{subject} could not be started by the operating system.",
     }
     return messages[result.failure]

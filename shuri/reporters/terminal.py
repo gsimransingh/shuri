@@ -247,7 +247,7 @@ def show_check_details(result: CheckResult, console: Console | None = None) -> N
         if isinstance(value, list) and _show_list_table(target, key, value):
             rendered = True
         elif key == "services" and isinstance(value, dict):
-            services = Table(title="Windows Services", header_style="bold bright_blue")
+            services = Table(title="System Services", header_style="bold bright_blue")
             services.add_column("Service")
             services.add_column("State")
             for service_name, service in value.items():
@@ -262,6 +262,17 @@ def show_check_details(result: CheckResult, console: Console | None = None) -> N
             rendered = True
         elif key == "defender" and isinstance(value, dict):
             _show_mapping_table(target, "Microsoft Defender", value)
+            rendered = True
+        elif key == "security_controls" and isinstance(value, dict):
+            controls = Table(title="Native Security Controls", header_style="bold bright_blue")
+            controls.add_column("Control")
+            controls.add_column("State")
+            for control, evidence in value.items():
+                state = (
+                    evidence[0] if isinstance(evidence, (list, tuple)) and evidence else evidence
+                )
+                controls.add_row(_metric_label(str(control)), str(state).title())
+            target.print(controls)
             rendered = True
         elif key in {"dns_probe", "tcp_probe"} and isinstance(value, dict):
             _show_mapping_table(target, _metric_label(key), value)

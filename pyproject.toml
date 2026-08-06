@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [{ name = "Shuri Contributors" }]
-keywords = ["diagnostics", "health", "support", "windows", "cli"]
+keywords = ["diagnostics", "health", "support", "windows", "linux", "macos", "cli"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -52,6 +52,7 @@ addopts = "-q"
 pythonpath = ["."]
 markers = [
   "windows_integration: safe read-only checks against real Windows facilities",
+  "native_integration: safe read-only checks against real Linux or macOS facilities",
 ]
 
 [tool.ruff]

@@ -13,6 +13,7 @@ from shuri.checks.eventlogs import parse_event_levels
 from shuri.checks.network import parse_windows_network_configuration
 from shuri.cli import _selected_format
 from shuri.models import CheckStatus
+from shuri.utils.platform import OperatingSystem
 
 
 def test_windows_network_configuration_extracts_gateway_and_dns() -> None:
@@ -44,7 +45,7 @@ def test_signature_age_recognises_windows_powershell_json_dates() -> None:
 
 
 def test_available_updates_produce_transparent_deduction(monkeypatch: object) -> None:
-    monkeypatch.setattr(updates, "is_windows", lambda: True)
+    monkeypatch.setattr(updates, "operating_system", lambda: OperatingSystem.WINDOWS)
     monkeypatch.setattr(updates, "pending_reboot", lambda: False)
     monkeypatch.setattr(updates, "available_update_count", lambda: (2, None))
 
