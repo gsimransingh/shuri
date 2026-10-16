@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -12,6 +13,8 @@ from shuri.checks.battery import parse_battery_report
 from shuri.checks.eventlogs import parse_event_levels
 from shuri.checks.network import parse_windows_network_configuration
 from shuri.models import CheckStatus
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def test_windows_network_configuration_extracts_gateway_and_dns() -> None:
@@ -70,4 +73,4 @@ def test_redaction_requires_an_export_format(monkeypatch: pytest.MonkeyPatch) ->
     result = CliRunner().invoke(cli.app, ["doctor", "--redact"])
 
     assert result.exit_code != 0
-    assert "require --format json" in result.output
+    assert "require --format json" in _ANSI.sub("", result.output)
