@@ -3,18 +3,27 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.utils.platform import command_failure_message, is_windows, run_powershell
 
-_MAX_EVENTS = 50
+_MAX_EVENTS = 200
+_MAX_INCIDENTS_SHOWN = 25
 _LEVEL_NAMES = {1: "Critical", 2: "Error", 3: "Warning"}
 
 
-def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
-    """Count numeric event levels from PowerShell JSON and expose truncation."""
+def _level(entry: dict[str, Any]) -> int | None:
+    """Return a recognised numeric event level, or None for anything else."""
+    level = entry.get("Level")
+    if isinstance(level, int) and not isinstance(level, bool) and level in _LEVEL_NAMES:
+        return level
+    return None
+
+
+def _entries(payload: str) -> list[dict[str, Any]] | None:
     try:
         parsed: Any = json.loads(payload)
     except json.JSONDecodeError:
@@ -22,32 +31,78 @@ def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
     entries = parsed if isinstance(parsed, list) else [parsed]
     if not all(isinstance(entry, dict) for entry in entries):
         return None
-    levels = [entry.get("Level") for entry in entries]
-    truncated = len(levels) > _MAX_EVENTS
-    levels = levels[:_MAX_EVENTS]
+    return entries
+
+
+def parse_event_levels(payload: str) -> tuple[int, int, int, bool] | None:
+    """Count raw event levels from PowerShell JSON and expose truncation."""
+    entries = _entries(payload)
+    if entries is None:
+        return None
+    truncated = len(entries) > _MAX_EVENTS
+    levels = [_level(entry) for entry in entries[:_MAX_EVENTS]]
     return levels.count(1), levels.count(2), levels.count(3), truncated
 
 
-def parse_event_details(payload: str) -> tuple[dict[str, object], ...]:
-    """Return bounded, non-message event metadata suitable for detailed display."""
+def _event_time(entry: dict[str, Any]) -> datetime | None:
+    value = entry.get("TimeCreated")
+    if not isinstance(value, str):
+        return None
     try:
-        parsed: Any = json.loads(payload)
-    except json.JSONDecodeError:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+
+
+def group_event_incidents(payload: str) -> tuple[dict[str, object], ...]:
+    """Collapse bursts of identical events into incidents, newest first.
+
+    Events with the same level, provider and ID that fall within the burst window
+    of the first event in a run are one incident, so one boot-time burst of 35
+    identical entries is counted once. A steady repeating fault still produces many
+    incidents. Events without a parseable timestamp are never merged.
+    """
+    entries = _entries(payload)
+    if entries is None:
         return ()
-    entries = parsed if isinstance(parsed, list) else [parsed]
-    details: list[dict[str, object]] = []
+    window = timedelta(seconds=DEFAULT_POLICY.event_burst_window_seconds)
+    dated: dict[tuple[int, object, object], list[tuple[datetime, dict[str, Any]]]] = {}
+    incidents: list[tuple[datetime | None, dict[str, object]]] = []
     for entry in entries[:_MAX_EVENTS]:
-        if not isinstance(entry, dict) or entry.get("Level") not in _LEVEL_NAMES:
+        level = _level(entry)
+        if level is None:
             continue
-        details.append(
-            {
-                "time_created": entry.get("TimeCreated", "Unavailable"),
-                "level": _LEVEL_NAMES[int(entry["Level"])],
-                "event_id": entry.get("Id", "Unavailable"),
-                "provider": entry.get("ProviderName", "Unavailable"),
-            }
-        )
-    return tuple(details)
+        key = (level, entry.get("Id"), entry.get("ProviderName"))
+        moment = _event_time(entry)
+        if moment is None:
+            incidents.append((None, _incident(entry, level, 1)))
+        else:
+            dated.setdefault(key, []).append((moment, entry))
+    for (level, _, _), occurrences in dated.items():
+        occurrences.sort(key=lambda item: item[0])
+        anchor = occurrences[0][0]
+        count = 0
+        latest = occurrences[0]
+        for moment, entry in occurrences:
+            if moment - anchor > window:
+                incidents.append((latest[0], _incident(latest[1], level, count)))
+                anchor, count = moment, 0
+            count += 1
+            latest = (moment, entry)
+        incidents.append((latest[0], _incident(latest[1], level, count)))
+    incidents.sort(key=lambda item: item[0] or datetime.min.replace(tzinfo=UTC), reverse=True)
+    return tuple(incident for _, incident in incidents)
+
+
+def _incident(entry: dict[str, Any], level: int, count: int) -> dict[str, object]:
+    return {
+        "time_created": entry.get("TimeCreated", "Unavailable"),
+        "level": _LEVEL_NAMES[level],
+        "event_id": entry.get("Id", "Unavailable"),
+        "provider": entry.get("ProviderName", "Unavailable"),
+        "count": count,
+    }
 
 
 def check_event_logs() -> CheckResult:
@@ -87,7 +142,9 @@ def check_event_logs() -> CheckResult:
             summary="The Windows System event log returned invalid structured data.",
         )
     critical, errors, warnings, truncated = counts
-    event_details = parse_event_details(result.output)
+    incidents = group_event_incidents(result.output)
+    error_incidents = sum(1 for incident in incidents if incident["level"] == "Error")
+    event_details = incidents[:_MAX_INCIDENTS_SHOWN]
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
     status = CheckStatus.PASS
@@ -101,12 +158,16 @@ def check_event_logs() -> CheckResult:
                 "eventlogs",
             )
         )
-    if errors >= DEFAULT_POLICY.repeated_error_event_count:
+    if error_incidents >= DEFAULT_POLICY.repeated_error_event_count:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
-        findings.append(f"{errors} recent error System event(s) found.")
+        findings.append(
+            f"{error_incidents} separate System error incident(s) found "
+            f"({errors} error event(s) in total)."
+        )
         deductions.append(
             ScoreDeduction(
-                "Five or more recent System errors were found",
+                f"{DEFAULT_POLICY.repeated_error_event_count} or more separate "
+                "System error incidents were found",
                 DEFAULT_POLICY.repeated_error_event_points,
                 "eventlogs",
             )
@@ -123,6 +184,7 @@ def check_event_logs() -> CheckResult:
         metrics={
             "critical": critical,
             "errors": errors,
+            "error_incidents": error_incidents,
             "warnings": warnings,
             "window_hours": 24,
             "truncated": truncated,

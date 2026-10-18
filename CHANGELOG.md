@@ -2,6 +2,15 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## Unreleased
+
+### Fixed
+
+- Services: a stopped on-demand (manual-start) service such as Windows Update or BITS is no longer reported as a fault; only disabled or automatic-start services that are not running are. A service stuck in a starting state is now reported, and delayed-start services are given a grace period after boot. The start type is shown in the details table.
+- Defender: the signature timestamp is shown as ISO-8601 instead of the raw PowerShell `/Date(ms)/` value, and detail labels such as "AM Service Enabled" are readable.
+- Event logs: bursts of identical events within 60 seconds are counted as one incident for scoring, so a single boot-time burst no longer triggers the repeated-errors deduction. The raw `errors` count is kept and `error_incidents` is added. The scan window grows from 50 to 200 events, and unexpected `Level` values no longer cause an UNKNOWN result.
+- Scoring policy version is now 3 because service and event-log scoring changed.
+
 ## 0.5.4 — 2026-08-06
 
 ### Changed

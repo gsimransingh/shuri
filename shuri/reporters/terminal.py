@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -83,10 +84,34 @@ def _metric_value(key: str, value: object) -> str:
     return str(value)
 
 
+_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+
 def _metric_label(key: str) -> str:
-    words = key.removesuffix("_bytes").split("_")
     acronyms = {"cpu", "dns", "ip", "mac", "tcp", "usb"}
-    return " ".join(word.upper() if word in acronyms else word.title() for word in words)
+    words = [
+        part
+        for word in key.removesuffix("_bytes").split("_")
+        for part in _CAMEL_BOUNDARY.split(word)
+    ]
+    return " ".join(
+        (
+            word.upper()
+            if word in acronyms or (len(word) > 1 and word.isupper())
+            else word[:1].upper() + word[1:]
+        )
+        for word in words
+    )
+
+
+_START_TYPE_LABELS = {
+    "boot": "Boot",
+    "system": "System",
+    "auto": "Automatic",
+    "delayed_auto": "Automatic (delayed)",
+    "manual": "Manual",
+    "disabled": "Disabled",
+}
 
 
 def show_check(result: CheckResult, console: Console | None = None) -> None:
@@ -164,6 +189,7 @@ def _show_list_table(target: Console, key: str, entries: list[object]) -> bool:
                 ("level", "Level"),
                 ("event_id", "Event ID"),
                 ("provider", "Provider"),
+                ("count", "Count"),
             ),
         ),
     }
@@ -202,14 +228,16 @@ def show_check_details(result: CheckResult, console: Console | None = None) -> N
             services = Table(title="System Services", header_style="bold bright_blue")
             services.add_column("Service")
             services.add_column("State")
+            services.add_column("Start type")
             for service_name, service in value.items():
                 if isinstance(service, dict):
                     services.add_row(
                         str(service.get("display_name", service_name)),
                         str(service.get("state", "Unavailable")).title(),
+                        _START_TYPE_LABELS.get(str(service.get("start_type")), "Unavailable"),
                     )
                 else:
-                    services.add_row(str(service_name), str(service).title())
+                    services.add_row(str(service_name), str(service).title(), "Unavailable")
             target.print(services)
             rendered = True
         elif key == "defender" and isinstance(value, dict):

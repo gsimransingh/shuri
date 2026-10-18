@@ -49,24 +49,38 @@ def _third_party_antivirus_products() -> tuple[str, ...]:
     )
 
 
-def _signature_age_days(value: object) -> int | None:
-    """Return whole days since a Defender signature timestamp, when parseable."""
+def _parse_timestamp(value: object) -> datetime | None:
+    """Parse a PowerShell ``/Date(ms)/`` or ISO-8601 timestamp into an aware UTC datetime."""
     if not isinstance(value, str):
         return None
     powershell_date = re.fullmatch(r"/Date\((-?\d+)(?:[+-]\d{4})?\)/", value)
     if powershell_date:
         try:
-            updated = datetime.fromtimestamp(int(powershell_date.group(1)) / 1000, tz=UTC)
+            return datetime.fromtimestamp(int(powershell_date.group(1)) / 1000, tz=UTC)
         except (OverflowError, OSError, ValueError):
             return None
-    else:
-        try:
-            updated = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    if updated.tzinfo is None:
-        updated = updated.replace(tzinfo=UTC)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+
+def _signature_age_days(value: object) -> int | None:
+    """Return whole days since a Defender signature timestamp, when parseable."""
+    updated = _parse_timestamp(value)
+    if updated is None:
+        return None
     return max(0, (datetime.now(UTC) - updated).days)
+
+
+def _readable_status(status_data: dict[str, Any]) -> dict[str, Any]:
+    """Return Defender status with its timestamp as ISO-8601 instead of ``/Date(ms)/``."""
+    key = "AntivirusSignatureLastUpdated"
+    parsed = _parse_timestamp(status_data.get(key))
+    if parsed is None:
+        return status_data
+    return {**status_data, key: parsed.isoformat(timespec="seconds")}
 
 
 def check_antivirus() -> CheckResult:
@@ -102,6 +116,7 @@ def check_antivirus() -> CheckResult:
                 else "Microsoft Defender status returned invalid data."
             ),
         )
+    status_data = _readable_status(status_data)
     enabled = bool(status_data.get("AMServiceEnabled") and status_data.get("AntivirusEnabled"))
     real_time = bool(status_data.get("RealTimeProtectionEnabled"))
     if not enabled:
