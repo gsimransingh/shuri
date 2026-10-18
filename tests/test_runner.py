@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from threading import Barrier
+from threading import Barrier, Event
+from time import monotonic, sleep
 
 import pytest
 
@@ -79,3 +80,92 @@ def test_runner_completes_serial_checks_before_concurrent_checks() -> None:
     results = DiagnosticRunner(registry).run(max_workers=2, serial_names=("cpu",))
 
     assert tuple(result.name for result in results) == ("network", "cpu", "updates")
+
+
+def _hang(release: Event) -> CheckResult:
+    release.wait(10)
+    return CheckResult("hung", "Hung", CheckStatus.PASS, "Finished far too late")
+
+
+def test_runner_abandons_a_check_that_exceeds_its_timeout() -> None:
+    release = Event()
+    registry = DiagnosticRegistry()
+    registry.register("hung", lambda: _hang(release))
+    registry.register("quick", lambda: CheckResult("quick", "Quick", CheckStatus.PASS, "ok"))
+
+    started = monotonic()
+    results = DiagnosticRunner(registry, check_timeout=0.3).run(max_workers=2)
+    elapsed = monotonic() - started
+    release.set()
+
+    assert elapsed < 3
+    assert tuple(result.name for result in results) == ("hung", "quick")
+    assert results[0].status is CheckStatus.UNKNOWN
+    assert results[0].error == "TimeoutError"
+    assert results[1].status is CheckStatus.PASS
+
+
+def test_runner_enforces_the_overall_scan_deadline_on_unstarted_checks() -> None:
+    release = Event()
+    registry = DiagnosticRegistry()
+    registry.register("hung", lambda: _hang(release))
+    registry.register("waiting", lambda: CheckResult("waiting", "W", CheckStatus.PASS, "ok"))
+
+    results = DiagnosticRunner(registry, check_timeout=30, scan_timeout=0.3).run(max_workers=1)
+    release.set()
+
+    assert [result.error for result in results] == ["TimeoutError", "TimeoutError"]
+    assert all(result.status is CheckStatus.UNKNOWN for result in results)
+
+
+def test_runner_ignores_a_result_that_arrives_after_its_timeout() -> None:
+    release = Event()
+    registry = DiagnosticRegistry()
+    registry.register("late", lambda: _hang(release))
+    events: list[tuple[str, bool]] = []
+
+    results = DiagnosticRunner(registry, check_timeout=0.2).run(
+        progress=lambda name, result, _index, _total: events.append((name, result is not None))
+    )
+    release.set()
+    sleep(0.3)
+
+    assert results[0].error == "TimeoutError"
+    assert events == [("late", False), ("late", True)]
+
+
+def test_runner_records_the_error_class_but_not_the_message() -> None:
+    registry = DiagnosticRegistry()
+
+    def fail() -> CheckResult:
+        raise PermissionError(r"C:\Users\private\secret.txt")
+
+    registry.register("unsafe", fail)
+    runner = DiagnosticRunner(registry)
+
+    result = runner.run()[0]
+
+    assert result.error == "PermissionError"
+    assert "private" not in str(result)
+    assert runner.tracebacks == {}
+
+
+def test_runner_captures_tracebacks_only_when_asked() -> None:
+    registry = DiagnosticRegistry()
+
+    def fail() -> CheckResult:
+        raise RuntimeError("boom")
+
+    registry.register("unsafe", fail)
+    runner = DiagnosticRunner(registry, capture_tracebacks=True)
+
+    runner.run()
+
+    assert "RuntimeError: boom" in runner.tracebacks["unsafe"]
+
+
+def test_unknown_diagnostic_names_become_unknown_results() -> None:
+    result = DiagnosticRunner(DiagnosticRegistry()).run(("missing",))[0]
+
+    assert result.status is CheckStatus.UNKNOWN
+    assert result.error == "UnknownDiagnosticError"

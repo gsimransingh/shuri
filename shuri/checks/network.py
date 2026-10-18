@@ -14,14 +14,22 @@ from shuri.models import CheckResult, CheckStatus, ScoreDeduction
 from shuri.models.network import AdapterSnapshot
 from shuri.utils.constants import CONNECTIVITY_HOST, CONNECTIVITY_PORT, DNS_PROBE_HOST
 from shuri.utils.platform import command_failure_message, is_windows, run_powershell
+from shuri.utils.timeouts import call_with_timeout
+
+_DNS_TIMEOUT_SECONDS = 3.0
 
 
-def _can_resolve(hostname: str) -> bool:
+def _resolves(hostname: str) -> bool:
     try:
         socket.getaddrinfo(hostname, None)
     except socket.gaierror:
         return False
     return True
+
+
+def _can_resolve(hostname: str) -> bool:
+    """Resolve ``hostname``, treating a slow or invalid lookup as a failure."""
+    return call_with_timeout(lambda: _resolves(hostname), _DNS_TIMEOUT_SECONDS, False)
 
 
 def _can_connect(host: str, port: int) -> bool:

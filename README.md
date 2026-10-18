@@ -53,6 +53,25 @@ shuri network show                   # detailed evidence for one check
 shuri version
 ```
 
+### Exit codes
+
+Every command exits with a code that scripts can act on without parsing the output:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Every check passed. |
+| `1` | At least one warning; nothing failed and no evidence was missing. |
+| `2` | At least one check failed. |
+| `3` | Evidence was missing (a check was `UNKNOWN`) and nothing failed, so readiness cannot be confirmed. |
+
+Command-line usage errors (a bad option, an existing export file) also exit with `2`, but they
+print an `Error` panel to stderr instead of a report. When a score is incomplete, `doctor` shows
+"Incomplete — partial score" instead of presenting it as a full result.
+
+Each check is bounded to 45 seconds and a whole scan to 90 seconds; a check that runs over becomes
+`UNKNOWN` instead of hanging. If a check fails unexpectedly, run `shuri --debug doctor` to print its
+traceback to stderr (tracebacks can contain file paths, so review them before sharing).
+
 `doctor` does not retain local history. A JSON export is created only when you request one, and
 Shuri never overwrites an existing file unless you pass `--force`.
 

@@ -72,4 +72,4 @@ warn_unreachable = true
 exclude = ["tests"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S311"]

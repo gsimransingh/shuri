@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import socket
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from shuri import __version__
 from shuri.core import DiagnosticRunner, assess_health, default_registry
 from shuri.core.exceptions import ExportError
+from shuri.core.exitcodes import exit_code_for
 from shuri.core.privacy import redact_report
 from shuri.models import Report
 from shuri.reporters import render_json
@@ -32,6 +36,35 @@ app = typer.Typer(
     add_completion=False,
 )
 
+
+@dataclass
+class _State:
+    debug: bool = False
+
+
+_STATE = _State()
+_ERRORS = Console(stderr=True)
+
+
+@app.callback()
+def _main(
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            help="Print tracebacks for failed diagnostics to stderr (they may contain file paths).",
+        ),
+    ] = False,
+) -> None:
+    _STATE.debug = debug
+
+
+def _print_tracebacks(runner: DiagnosticRunner) -> None:
+    for name, trace in runner.tracebacks.items():
+        _ERRORS.print(f"[bold red]Traceback for the '{name}' diagnostic:[/bold red]")
+        sys.stderr.write(trace)
+
+
 OutputPath = Annotated[
     Path | None, typer.Option("--output", "-o", help="Where to write the JSON report.")
 ]
@@ -41,13 +74,15 @@ ReportFormat = Annotated[str | None, typer.Option("--format", "-f", help="json")
 def _build_report(names: tuple[str, ...] | None = None) -> Report:
     registry = default_registry()
     started = perf_counter()
+    runner = DiagnosticRunner(registry, capture_tracebacks=_STATE.debug)
     with scan_progress() as progress:
-        results = DiagnosticRunner(registry).run(
+        results = runner.run(
             names,
             progress=progress,
             max_workers=4,
             serial_names=("cpu",),
         )
+    _print_tracebacks(runner)
     return Report.create(
         results=results,
         hostname=socket.gethostname(),
@@ -102,14 +137,18 @@ def doctor(
     show_report(report, details=action == "show")
     if report_format:
         show_exported(_export(report, output, raw=raw, force=force), raw=raw)
+    raise typer.Exit(int(exit_code_for(report.results)))
 
 
 def _single_check(name: str, action: str | None = None) -> None:
     _validate_action(action)
-    result = DiagnosticRunner(default_registry()).run((name,))[0]
+    runner = DiagnosticRunner(default_registry(), capture_tracebacks=_STATE.debug)
+    result = runner.run((name,))[0]
+    _print_tracebacks(runner)
     show_check(result)
     if action == "show":
         show_check_details(result)
+    raise typer.Exit(int(exit_code_for((result,))))
 
 
 def _run_single_command(name: str, action: str | None) -> None:

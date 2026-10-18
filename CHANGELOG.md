@@ -2,6 +2,24 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## Unreleased
+
+### Added
+
+- Exit codes for scripting: `0` all passed, `1` warnings, `2` failures, `3` incomplete (missing evidence). They apply to `doctor` and every single-check command.
+- `shuri --debug` prints the traceback of a diagnostic that failed unexpectedly to stderr.
+- Each result records the exception class (`error`) when a diagnostic failed or timed out, never the message. The report schema version is now 5.
+
+### Changed
+
+- A scan with unknown checks now shows "Incomplete — partial score" instead of a bare score such as `100/100`.
+- The service check reads state through `psutil` and the `DelayedAutostart` registry flag instead of running and parsing `sc`, so it spawns no processes and no longer depends on command output.
+- Diagnostics run on daemon threads with a 45 second per-check and 90 second per-scan deadline. A check that hangs becomes `UNKNOWN` and never blocks the scan or process exit.
+
+### Fixed
+
+- A slow or invalid DNS probe target no longer hangs the network check or crashes it on an invalid host name; the lookup is bounded to 3 seconds.
+
 ## 0.5.5 — 2026-10-19
 
 ### Security

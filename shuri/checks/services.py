@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import time
 from dataclasses import dataclass
 
@@ -9,7 +10,7 @@ import psutil
 
 from shuri.core.policy import DEFAULT_POLICY
 from shuri.models import CheckResult, CheckStatus, ScoreDeduction
-from shuri.utils.platform import CommandResult, command_failure_message, is_windows, run_command
+from shuri.utils.platform import is_windows
 
 _SERVICES = {
     "wuauserv": "Windows Update",
@@ -21,75 +22,91 @@ _SERVICES = {
 }
 _CRITICAL_SERVICES = {"eventlog", "WinDefend", "Dhcp", "Dnscache"}
 
-
-_STARTING_STATES = {"START_PENDING", "CONTINUE_PENDING"}
-_NOT_RUNNING_STATES = {"STOPPED", "STOP_PENDING", "PAUSE_PENDING", "PAUSED"}
-# ``sc qc`` prints a locale-neutral numeric START_TYPE code before its label.
-_START_TYPES = {"0": "boot", "1": "system", "2": "auto", "3": "manual", "4": "disabled"}
+# psutil reports the Service Control Manager's state names in lower case.
+_STARTING_STATES = {"start_pending", "continue_pending"}
+_NOT_RUNNING_STATES = {"stopped", "stop_pending", "pause_pending", "paused"}
+_START_TYPES = {
+    "boot": "boot",
+    "system": "system",
+    "automatic": "auto",
+    "manual": "manual",
+    "disabled": "disabled",
+}
 _STARTING_RECHECKS = 2
 _STARTING_RECHECK_SECONDS = 1.0
 # Delayed-start services legitimately stay stopped for a few minutes after boot.
 _DELAYED_START_GRACE_SECONDS = 300
+_SERVICES_REGISTRY_KEY = r"SYSTEM\CurrentControlSet\Services"
 
 
 @dataclass(frozen=True, slots=True)
 class _ServiceStatus:
     state: str
     start_type: str
-    result: CommandResult
 
 
-def _parse_service_state(output: str) -> str:
-    """Translate ``sc query`` output into a stable state without guessing."""
-    for line in output.splitlines():
-        label, separator, value = line.partition(":")
-        if separator and label.strip().upper() == "STATE":
-            parts = value.split()
-            token = parts[-1].upper() if parts else ""
-            if token == "RUNNING":  # noqa: S105  (a parsed state word, not a secret)
-                return "running"
-            if token in _STARTING_STATES:
-                return "starting"
-            if token in _NOT_RUNNING_STATES:
-                return "stopped"
+def _parse_service_state(status: str) -> str:
+    """Translate psutil's service status into a stable state without guessing."""
+    label = status.lower()
+    if label == "running":
+        return "running"
+    if label in _STARTING_STATES:
+        return "starting"
+    if label in _NOT_RUNNING_STATES:
+        return "stopped"
     return "unavailable"
 
 
-def _parse_start_type(output: str) -> str:
-    """Translate ``sc qc`` output into a start type, or ``unknown`` when unreadable."""
-    for line in output.splitlines():
-        label, separator, value = line.partition(":")
-        if separator and label.strip().upper() == "START_TYPE":
-            parts = value.split()
-            kind = _START_TYPES.get(parts[0]) if parts else None
-            if kind is None:
-                return "unknown"
-            return "delayed_auto" if kind == "auto" and "DELAYED" in value.upper() else kind
-    return "unknown"
+def _parse_start_type(start_type: str, *, delayed: bool = False) -> str:
+    """Translate psutil's start type, or ``unknown`` when it is not one Windows documents."""
+    kind = _START_TYPES.get(start_type.lower())
+    if kind is None:
+        return "unknown"
+    return "delayed_auto" if kind == "auto" and delayed else kind
 
 
-def _service_state(name: str) -> tuple[str, CommandResult]:
-    result = run_command(("sc", "query", name))
-    if not result.succeeded:
-        return "unavailable", result
-    return _parse_service_state(result.output), result
+def _is_delayed_autostart(name: str) -> bool:
+    """Read the ``DelayedAutostart`` registry flag; any failure means not delayed."""
+    try:
+        winreg = importlib.import_module("winreg")
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, rf"{_SERVICES_REGISTRY_KEY}\{name}") as key:
+            value, _kind = winreg.QueryValueEx(key, "DelayedAutostart")
+    except (ImportError, OSError):
+        return False
+    return bool(value == 1)
 
 
-def _service_start_type(name: str) -> str:
-    result = run_command(("sc", "qc", name))
-    return _parse_start_type(result.output) if result.succeeded else "unknown"
+def _read_service(name: str) -> tuple[str, str]:
+    """Return psutil's raw ``(status, start_type)`` strings for a service."""
+    getter = getattr(psutil, "win_service_get", None)
+    if getter is None:
+        raise OSError("Windows service queries are unavailable on this platform.")
+    service = getter(name)
+    return str(service.status()), str(service.start_type())
+
+
+def _service_state(name: str) -> str:
+    try:
+        return _parse_service_state(_read_service(name)[0])
+    except (psutil.Error, OSError):
+        return "unavailable"
 
 
 def _inspect_service(name: str) -> _ServiceStatus:
     """Read a service's state, giving a service that is still starting time to settle."""
-    state, result = _service_state(name)
+    state = _service_state(name)
     for _ in range(_STARTING_RECHECKS):
         if state != "starting":
             break
         time.sleep(_STARTING_RECHECK_SECONDS)
-        state, result = _service_state(name)
-    start_type = _service_start_type(name) if state != "unavailable" else "unknown"
-    return _ServiceStatus(state, start_type, result)
+        state = _service_state(name)
+    if state == "unavailable":
+        return _ServiceStatus(state, "unknown")
+    try:
+        raw_type = _read_service(name)[1]
+    except (psutil.Error, OSError):
+        return _ServiceStatus(state, "unknown")
+    return _ServiceStatus(state, _parse_start_type(raw_type, delayed=_is_delayed_autostart(name)))
 
 
 def _seconds_since_boot() -> float | None:
@@ -141,9 +158,7 @@ def check_services() -> CheckResult:
             name="services",
             title="Windows Services",
             status=CheckStatus.UNKNOWN,
-            summary=command_failure_message(
-                "Windows service status", next(iter(inspected.values())).result
-            ),
+            summary="Windows service status could not be read; run Shuri with sufficient access.",
             metrics={"services": {name: status.state for name, status in inspected.items()}},
         )
     uptime = _seconds_since_boot()

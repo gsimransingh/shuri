@@ -44,6 +44,8 @@ class CheckResult:
     findings: tuple[str, ...] = ()
     deductions: tuple[ScoreDeduction, ...] = ()
     duration_ms: float = 0.0
+    error: str | None = None
+    """Exception class name when the diagnostic failed or timed out; never the message."""
 
 
 @dataclass(frozen=True, slots=True)

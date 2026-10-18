@@ -7,6 +7,8 @@ import pytest
 from typer.testing import CliRunner
 
 from shuri import cli
+from shuri.core import assess_health
+from shuri.core.registry import DiagnosticRegistry
 from shuri.models import CheckResult, CheckStatus, Report
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -107,3 +109,65 @@ def test_removed_report_management_commands_are_not_exposed() -> None:
 
     assert result.exit_code != 0
     assert "No such command" in result.output
+
+
+def _report_with(*statuses: CheckStatus) -> Report:
+    results = tuple(CheckResult(f"c{i}", "C", status, "s") for i, status in enumerate(statuses))
+    return Report.create(results, "host", assess_health(results))
+
+
+@pytest.mark.parametrize(
+    ("statuses", "expected"),
+    (
+        ((CheckStatus.PASS,), 0),
+        ((CheckStatus.WARNING,), 1),
+        ((CheckStatus.FAIL,), 2),
+        ((CheckStatus.UNKNOWN,), 3),
+    ),
+)
+def test_doctor_exit_code_reports_the_outcome(
+    monkeypatch: pytest.MonkeyPatch, statuses: tuple[CheckStatus, ...], expected: int
+) -> None:
+    monkeypatch.setattr(cli, "_build_report", lambda: _report_with(*statuses))
+
+    assert CliRunner().invoke(cli.app, ["doctor"]).exit_code == expected
+
+
+def test_single_check_exit_code_reports_the_outcome(monkeypatch: pytest.MonkeyPatch) -> None:
+    failing = CheckResult("disk", "Disk", CheckStatus.FAIL, "Low space")
+    monkeypatch.setattr(cli.DiagnosticRunner, "run", lambda _self, _names: (failing,))
+
+    assert CliRunner().invoke(cli.app, ["disk"]).exit_code == 2
+
+
+def test_incomplete_scan_headline_does_not_present_a_perfect_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli, "_build_report", lambda: _report_with(CheckStatus.PASS, CheckStatus.UNKNOWN)
+    )
+
+    output = _plain(CliRunner().invoke(cli.app, ["doctor"]).output)
+
+    assert "Incomplete" in output
+    assert "partial score" in output
+    assert "100/100 — Incomplete" not in output
+
+
+def test_debug_flag_prints_tracebacks_for_failed_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = DiagnosticRegistry()
+
+    def explode() -> CheckResult:
+        raise RuntimeError("visible only with --debug")
+
+    registry.register("cpu", explode)
+    monkeypatch.setattr(cli, "default_registry", lambda: registry)
+
+    quiet = CliRunner().invoke(cli.app, ["cpu"])
+    loud = CliRunner().invoke(cli.app, ["--debug", "cpu"])
+
+    assert "visible only with --debug" not in quiet.output
+    assert "visible only with --debug" in loud.output
+    assert "RuntimeError" in quiet.output

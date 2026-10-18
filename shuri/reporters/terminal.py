@@ -257,9 +257,16 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
     if report.assessment:
         assessment = report.assessment
         generated = report.generated_at.strftime("%Y-%m-%d %H:%M UTC")
+        if assessment.unknown_checks:
+            headline = (
+                f"[bold yellow]Incomplete[/bold yellow] — partial score "
+                f"{assessment.score}/100 from the checks that ran"
+            )
+        else:
+            headline = f"[bold]{assessment.score}/100[/bold] — {assessment.label}"
         target.print(
             Panel.fit(
-                f"[bold]{assessment.score}/100[/bold] — {assessment.label}\n"
+                f"{headline}\n"
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
                 f"Coverage: {assessment.completed_checks}/{len(report.results)} checks "
                 f"({assessment.coverage_percent:.1f}%)\n"
