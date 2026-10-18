@@ -37,7 +37,7 @@ def test_doctor_exports_json_without_saving_a_local_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     report = Report.create((), "test-host")
-    monkeypatch.setattr(cli, "_build_report", lambda: report)
+    monkeypatch.setattr(cli, "_build_report", lambda **_kwargs: report)
     output = tmp_path / "report.json"
 
     result = CliRunner().invoke(
@@ -53,7 +53,7 @@ def test_doctor_exports_json_without_saving_a_local_report(
 def test_doctor_export_is_redacted_by_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(cli, "_build_report", lambda: Report.create((), "private-host"))
+    monkeypatch.setattr(cli, "_build_report", lambda **_kwargs: Report.create((), "private-host"))
     output = tmp_path / "report.json"
 
     result = CliRunner().invoke(cli.app, ["doctor", "--format", "json", "--output", str(output)])
@@ -68,7 +68,7 @@ def test_doctor_export_is_redacted_by_default(
 def test_doctor_will_not_overwrite_an_existing_export_without_force(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(cli, "_build_report", lambda: Report.create((), "host"))
+    monkeypatch.setattr(cli, "_build_report", lambda **_kwargs: Report.create((), "host"))
     output = tmp_path / "report.json"
     output.write_text("precious", encoding="utf-8")
     arguments = ["doctor", "--format", "json", "--output", str(output)]
@@ -128,7 +128,7 @@ def _report_with(*statuses: CheckStatus) -> Report:
 def test_doctor_exit_code_reports_the_outcome(
     monkeypatch: pytest.MonkeyPatch, statuses: tuple[CheckStatus, ...], expected: int
 ) -> None:
-    monkeypatch.setattr(cli, "_build_report", lambda: _report_with(*statuses))
+    monkeypatch.setattr(cli, "_build_report", lambda **_kwargs: _report_with(*statuses))
 
     assert CliRunner().invoke(cli.app, ["doctor"]).exit_code == expected
 
@@ -144,7 +144,7 @@ def test_incomplete_scan_headline_does_not_present_a_perfect_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        cli, "_build_report", lambda: _report_with(CheckStatus.PASS, CheckStatus.UNKNOWN)
+        cli, "_build_report", lambda **_kwargs: _report_with(CheckStatus.PASS, CheckStatus.UNKNOWN)
     )
 
     output = _plain(CliRunner().invoke(cli.app, ["doctor"]).output)
@@ -163,7 +163,7 @@ def test_debug_flag_prints_tracebacks_for_failed_diagnostics(
         raise RuntimeError("visible only with --debug")
 
     registry.register("cpu", explode)
-    monkeypatch.setattr(cli, "default_registry", lambda: registry)
+    monkeypatch.setattr(cli, "default_registry", lambda **_kwargs: registry)
 
     quiet = CliRunner().invoke(cli.app, ["cpu"])
     loud = CliRunner().invoke(cli.app, ["--debug", "cpu"])

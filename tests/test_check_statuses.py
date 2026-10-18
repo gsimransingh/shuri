@@ -36,7 +36,7 @@ def test_network_status_outcomes(
     monkeypatch.setattr(network, "_can_resolve", lambda _host: dns_succeeded)
     monkeypatch.setattr(network, "_can_connect", lambda _host, _port: tcp_succeeded)
 
-    assert network.check_network().status is expected
+    assert network.check_network(probe=True).status is expected
 
 
 def test_partial_windows_network_configuration_is_a_warning(
@@ -56,7 +56,7 @@ def test_partial_windows_network_configuration_is_a_warning(
     monkeypatch.setattr(network, "_can_resolve", lambda _host: True)
     monkeypatch.setattr(network, "_can_connect", lambda _host, _port: True)
 
-    result = network.check_network()
+    result = network.check_network(probe=True)
 
     assert result.status is CheckStatus.WARNING
     assert result.metrics["configuration_complete"] is False

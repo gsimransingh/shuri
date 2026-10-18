@@ -137,7 +137,7 @@ def test_every_metric_key_emitted_by_portable_checks_is_reviewed(
             memory.check_memory,
             disk.check_disk,
             system.check_system,
-            network.check_network,
+            lambda: network.check_network(probe=True),
         )
     ]
 

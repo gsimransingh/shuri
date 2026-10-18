@@ -323,6 +323,14 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
                 show_check_details(result, target)
 
 
+def show_hint(console: Console | None = None) -> None:
+    """Point at the two follow-up actions people most often need."""
+    (console or _CONSOLE).print(
+        "[dim]Next: 'shuri --details' shows the evidence; "
+        "'shuri --json report.json' saves a shareable report.[/dim]"
+    )
+
+
 def show_exported(path: Path, console: Console | None = None, *, raw: bool = False) -> None:
     """Confirm an exported report path, warning when identifiers were kept."""
     target = console or _CONSOLE

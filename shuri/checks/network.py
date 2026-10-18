@@ -141,14 +141,17 @@ def _probe_configuration() -> tuple[str, str, int]:
     return dns_host, connect_host, connect_port
 
 
-def check_network() -> CheckResult:
-    """Collect network identity, configuration, DNS health, and reachability."""
+def check_network(probe: bool = False) -> CheckResult:
+    """Collect network identity and configuration, and optionally probe DNS and reachability.
+
+    The probes are the only part of Shuri that touches the network, so they run only when asked.
+    """
     adapters = _adapter_snapshots()
     active = tuple(adapter for adapter in adapters if adapter.is_up and adapter.addresses)
     default_gateway, dns_servers, configuration_error = _windows_network_configuration()
-    dns_host, connect_host, connect_port = _probe_configuration()
-    dns_resolution = _can_resolve(dns_host)
-    connectivity = _can_connect(connect_host, connect_port)
+    dns_host, connect_host, connect_port = _probe_configuration() if probe else ("", "", 0)
+    dns_resolution = _can_resolve(dns_host) if probe else True
+    connectivity = _can_connect(connect_host, connect_port) if probe else True
     status = CheckStatus.PASS
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
@@ -181,14 +184,28 @@ def check_network() -> CheckResult:
     if configuration_error:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
         findings.append(configuration_error)
-    dns_state = "available" if dns_resolution else "unavailable"
     configuration_state = "partial" if configuration_error else "complete"
+    if probe:
+        dns_state = "available" if dns_resolution else "unavailable"
+        probe_summary = f"DNS {dns_state}"
+    else:
+        probe_summary = "connectivity probes not run (use --probe)"
+    probe_metrics: dict[str, object] = {}
+    if probe:
+        probe_metrics = {
+            "dns_probe": {"target": dns_host, "succeeded": dns_resolution},
+            "tcp_probe": {
+                "target": connect_host,
+                "port": connect_port,
+                "succeeded": connectivity,
+            },
+        }
     return CheckResult(
         name="network",
         title="Network",
         status=status,
         summary=(
-            f"{len(active)} active adapter(s); DNS {dns_state}; "
+            f"{len(active)} active adapter(s); {probe_summary}; "
             f"configuration {configuration_state}."
         ),
         metrics={
@@ -196,12 +213,8 @@ def check_network() -> CheckResult:
             "default_gateway": default_gateway,
             "dns_servers": list(dns_servers),
             "configuration_complete": configuration_error is None,
-            "dns_probe": {"target": dns_host, "succeeded": dns_resolution},
-            "tcp_probe": {
-                "target": connect_host,
-                "port": connect_port,
-                "succeeded": connectivity,
-            },
+            "probes_run": probe,
+            **probe_metrics,
             "adapters": [
                 {
                     "name": adapter.name,

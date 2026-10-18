@@ -43,11 +43,12 @@ def test_system_check_includes_workstation_facts(monkeypatch: pytest.MonkeyPatch
     assert result.metrics["python_version"] == "3.12.10"
 
 
-def test_system_command_is_available(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("arguments", (["check", "system"], ["system"]))
+def test_system_check_is_available(monkeypatch: pytest.MonkeyPatch, arguments: list[str]) -> None:
     selected: list[str] = []
-    monkeypatch.setattr(cli, "_run_single_command", lambda name, _action: selected.append(name))
+    monkeypatch.setattr(cli, "_run_check", lambda name, *, details, probe: selected.append(name))
 
-    result = CliRunner().invoke(cli.app, ["system"])
+    result = CliRunner().invoke(cli.app, arguments)
 
     assert result.exit_code == 0
     assert selected == ["system"]
