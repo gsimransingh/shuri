@@ -20,6 +20,8 @@ _FAIL_OPERATIONAL = {
     "supporting entity in error",
 }
 _WARN_OPERATIONAL = {"degraded", "no contact", "stressed"}
+# Mounted disk images (VHD/VHDX, WSL, Dev Drive) are files, not hardware.
+_VIRTUAL_BUS_TYPES = {"file backed virtual", "virtual"}
 
 
 def parse_physical_drives(payload: str) -> tuple[PhysicalDriveSnapshot, ...]:
@@ -120,6 +122,10 @@ def _physical_drive_snapshots() -> tuple[tuple[PhysicalDriveSnapshot, ...], Comm
     return (parse_physical_drives(result.output) if result.succeeded else ()), result
 
 
+def _is_virtual(drive: PhysicalDriveSnapshot) -> bool:
+    return drive.bus_type.casefold() in _VIRTUAL_BUS_TYPES
+
+
 def _drive_state(drive: PhysicalDriveSnapshot) -> CheckStatus:
     health = drive.health_status.casefold()
     operational = {value.casefold() for value in drive.operational_status}
@@ -145,6 +151,7 @@ def _drive_state(drive: PhysicalDriveSnapshot) -> CheckStatus:
 
 def build_physical_drive_result(
     drives: tuple[PhysicalDriveSnapshot, ...],
+    virtual_ignored: int = 0,
 ) -> CheckResult:
     """Assess trustworthy drive states without inferring health from missing counters."""
     states = tuple(_drive_state(drive) for drive in drives)
@@ -199,6 +206,7 @@ def build_physical_drive_result(
         status=status,
         summary=f"Checked {len(drives)} physical drive(s); {known} had trustworthy health state.",
         metrics={
+            "virtual_drives_ignored": virtual_ignored,
             "physical_drives": [
                 {
                     "device_id": drive.device_id,
@@ -215,7 +223,7 @@ def build_physical_drive_result(
                     "power_on_hours": drive.power_on_hours,
                 }
                 for drive in drives
-            ]
+            ],
         },
         findings=tuple(findings),
         deductions=deductions,
@@ -248,4 +256,14 @@ def check_physical_drives() -> CheckResult:
             status=CheckStatus.UNKNOWN,
             summary="Windows returned no valid physical-drive health data.",
         )
-    return build_physical_drive_result(drives)
+    physical = tuple(drive for drive in drives if not _is_virtual(drive))
+    ignored = len(drives) - len(physical)
+    if not physical:
+        return CheckResult(
+            name="physical_drives",
+            title="Physical Drives",
+            status=CheckStatus.UNKNOWN,
+            summary=f"Only virtual disks were found ({ignored}); no physical drive was assessed.",
+            metrics={"virtual_drives_ignored": ignored},
+        )
+    return build_physical_drive_result(physical, ignored)
