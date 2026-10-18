@@ -17,11 +17,31 @@ _SERVICES = {
 _CRITICAL_SERVICES = {"eventlog", "WinDefend", "Dhcp", "Dnscache"}
 
 
+_STARTING_STATES = {"START_PENDING", "CONTINUE_PENDING"}
+_NOT_RUNNING_STATES = {"STOPPED", "STOP_PENDING", "PAUSE_PENDING", "PAUSED"}
+
+
+def _parse_service_state(output: str) -> str:
+    """Translate ``sc query`` output into a stable state without guessing."""
+    for line in output.splitlines():
+        label, separator, value = line.partition(":")
+        if separator and label.strip().upper() == "STATE":
+            parts = value.split()
+            token = parts[-1].upper() if parts else ""
+            if token == "RUNNING":
+                return "running"
+            if token in _STARTING_STATES:
+                return "starting"
+            if token in _NOT_RUNNING_STATES:
+                return "stopped"
+    return "unavailable"
+
+
 def _service_state(name: str) -> tuple[str, CommandResult]:
     result = run_command(("sc", "query", name))
     if not result.succeeded:
         return "unavailable", result
-    return ("running" if "RUNNING" in result.output else "stopped"), result
+    return _parse_service_state(result.output), result
 
 
 def check_services() -> CheckResult:

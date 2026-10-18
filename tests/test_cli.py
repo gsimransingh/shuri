@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,13 @@ from typer.testing import CliRunner
 
 from shuri import cli
 from shuri.models import CheckResult, CheckStatus, Report
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(output: str) -> str:
+    """Remove terminal colour codes that CI forces on, which can split a message."""
+    return _ANSI.sub("", output)
 
 
 def test_doctor_rejects_non_json_export() -> None:
@@ -20,7 +28,7 @@ def test_doctor_rejects_output_without_json() -> None:
     result = CliRunner().invoke(cli.app, ["doctor", "--output", "report.json"])
 
     assert result.exit_code != 0
-    assert "require --format json" in result.output
+    assert "require --format json" in _plain(result.output)
 
 
 def test_doctor_exports_json_without_saving_a_local_report(
