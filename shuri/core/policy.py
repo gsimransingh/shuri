@@ -24,6 +24,7 @@ class ScoringPolicy:
     critical_battery_health_percent: float = 60.0
     stale_antivirus_signature_days: int = 14
     repeated_error_event_count: int = 5
+    event_burst_window_seconds: int = 60
     high_drive_temperature_celsius: float = 70.0
     high_drive_wear_percent: float = 90.0
     high_cpu_points: int = 5

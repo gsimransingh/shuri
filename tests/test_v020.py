@@ -58,9 +58,9 @@ def test_available_updates_produce_transparent_deduction(monkeypatch: object) ->
 
 
 def test_structured_event_levels_expose_truncation() -> None:
-    payload = "[" + ",".join('{"Level":2}' for _ in range(51)) + "]"
+    payload = "[" + ",".join('{"Level":2}' for _ in range(201)) + "]"
 
-    assert parse_event_levels(payload) == (0, 50, 0, True)
+    assert parse_event_levels(payload) == (0, 200, 0, True)
 
 
 def test_redaction_requires_an_export_format(monkeypatch: pytest.MonkeyPatch) -> None:
