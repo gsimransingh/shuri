@@ -68,7 +68,7 @@ def test_partial_windows_network_configuration_is_a_warning(
     ("levels", "expected"),
     (
         ((), CheckStatus.PASS),
-        ((2, 2, 2, 2, 2), CheckStatus.WARNING),
+        ((2, 2, 2, 2, 2), CheckStatus.PASS),  # untargeted errors are noise, never scored
         ((1,), CheckStatus.FAIL),
     ),
 )
