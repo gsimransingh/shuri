@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 
 def is_windows() -> bool:
@@ -45,11 +46,42 @@ class CommandResult:
         return self.failure is None
 
 
+# Windows resolves a bare program name against the application directory, the current
+# directory and PATH, so a planted ``powershell.exe`` in the working folder would run.
+# Shuri therefore only launches this fixed set, always from the Windows system directory.
+_WINDOWS_SYSTEM_TOOLS = {
+    "powershell.exe": ("WindowsPowerShell", "v1.0", "powershell.exe"),
+    "sc": ("sc.exe",),
+    "powercfg": ("powercfg.exe",),
+}
+
+
+def windows_system_directory() -> Path:
+    """Return the Windows System32 directory."""
+    return Path(os.environ.get("SYSTEMROOT") or r"C:\Windows") / "System32"
+
+
+def resolve_executable(name: str) -> str | None:
+    """Return the trusted absolute path for a bare Windows tool name, or None if not allowed."""
+    parts = _WINDOWS_SYSTEM_TOOLS.get(name.casefold())
+    if parts is None:
+        return None
+    return str(windows_system_directory().joinpath(*parts))
+
+
 def run_command(command: Sequence[str], timeout: float = 5.0) -> CommandResult:
     """Run a fixed command safely without a shell and classify any failure."""
+    working_directory: str | None = None
+    if is_windows():
+        resolved = resolve_executable(command[0])
+        if resolved is None:
+            return CommandResult(failure=CommandFailure.NOT_FOUND)
+        command = (resolved, *command[1:])
+        working_directory = str(windows_system_directory())
     try:
-        completed = subprocess.run(
+        completed = subprocess.run(  # noqa: S603 - allow-listed system tool, no shell
             command,
+            cwd=working_directory,
             capture_output=True,
             check=False,
             text=True,

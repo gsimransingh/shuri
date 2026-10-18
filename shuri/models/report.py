@@ -13,7 +13,7 @@ from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION, __versi
 class CheckStatus(StrEnum):
     """Outcome of one diagnostic."""
 
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105  (a status label, not a password)
     WARNING = "warning"
     FAIL = "fail"
     UNKNOWN = "unknown"

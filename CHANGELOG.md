@@ -2,7 +2,19 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
-## Unreleased
+## 0.5.5 — 2026-10-19
+
+### Security
+
+- Windows tools (`powershell.exe`, `sc.exe`, `powercfg.exe`) now run by absolute path from System32, with System32 as the working directory, so a look-alike program in the current folder or on `PATH` can no longer be launched. Any other program name is refused.
+- JSON exports are redacted by default. Redaction is now an allow-list, so a metric that has not been reviewed is hidden instead of leaked, and identifiers are also scrubbed from summaries, findings and score deductions. Use `--raw` to keep identifiers; it prints a warning. `--redact` is accepted but no longer needed.
+- Exports no longer overwrite an existing file unless `--force` is given, never follow symbolic links, and are written atomically.
+- Added `SECURITY.md`, CodeQL, `pip-audit`, Ruff security rules, commit-pinned GitHub Actions and a hash-locked CI dependency set (`requirements/lock-py312.txt`).
+
+### Changed
+
+- The README now documents the network probes and their `SHURI_*` overrides, and recommends installing a tagged release.
+- Removed unused constants left over from the removed report-history feature.
 
 ### Fixed
 

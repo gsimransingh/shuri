@@ -11,6 +11,7 @@ import typer
 
 from shuri import __version__
 from shuri.core import DiagnosticRunner, assess_health, default_registry
+from shuri.core.exceptions import ExportError
 from shuri.core.privacy import redact_report
 from shuri.models import Report
 from shuri.reporters import render_json
@@ -21,6 +22,7 @@ from shuri.reporters.terminal import (
     show_exported,
     show_report,
 )
+from shuri.utils.files import write_report_file
 from shuri.utils.helpers import default_report_path
 
 app = typer.Typer(
@@ -54,12 +56,13 @@ def _build_report(names: tuple[str, ...] | None = None) -> Report:
     )
 
 
-def _export(report: Report, output: Path | None, *, redact: bool = False) -> Path:
+def _export(report: Report, output: Path | None, *, raw: bool = False, force: bool = False) -> Path:
     path = output or default_report_path("json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    exported_report = redact_report(report) if redact else report
-    path.write_text(render_json(exported_report), encoding="utf-8")
-    return path
+    exported_report = report if raw else redact_report(report)
+    try:
+        return write_report_file(path, render_json(exported_report), overwrite=force)
+    except ExportError as error:
+        raise typer.BadParameter(str(error)) from None
 
 
 def _validate_action(action: str | None) -> None:
@@ -72,21 +75,33 @@ def doctor(
     action: Annotated[str | None, typer.Argument(help="Use 'show' for detailed evidence.")] = None,
     report_format: ReportFormat = None,
     output: OutputPath = None,
+    raw: Annotated[
+        bool,
+        typer.Option(
+            "--raw",
+            help="Keep hostname and network identifiers in the JSON export (redacted by default).",
+        ),
+    ] = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace the export file if it already exists.")
+    ] = False,
     redact: Annotated[
         bool,
-        typer.Option("--redact", help="Remove workstation and network identifiers from JSON."),
+        typer.Option("--redact", hidden=True, help="Deprecated: exports are redacted by default."),
     ] = False,
 ) -> None:
     """Run the Windows workstation-readiness assessment."""
     _validate_action(action)
     if report_format and report_format.lower() != "json":
         raise typer.BadParameter("Format must be json.")
-    if (output or redact) and report_format is None:
-        raise typer.BadParameter("--output and --redact require --format json.")
+    if (output or raw or force or redact) and report_format is None:
+        raise typer.BadParameter("--output, --raw, --redact and --force require --format json.")
+    if raw and redact:
+        raise typer.BadParameter("--raw and --redact cannot be combined.")
     report = _build_report()
     show_report(report, details=action == "show")
     if report_format:
-        show_exported(_export(report, output, redact=redact))
+        show_exported(_export(report, output, raw=raw, force=force), raw=raw)
 
 
 def _single_check(name: str, action: str | None = None) -> None:

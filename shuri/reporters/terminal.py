@@ -316,9 +316,15 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
                 show_check_details(result, target)
 
 
-def show_exported(path: Path, console: Console | None = None) -> None:
-    """Confirm an exported report path."""
-    (console or _CONSOLE).print(f"[green]Report written to[/green] {path}")
+def show_exported(path: Path, console: Console | None = None, *, raw: bool = False) -> None:
+    """Confirm an exported report path, warning when identifiers were kept."""
+    target = console or _CONSOLE
+    target.print(f"[green]Report written to[/green] {path}")
+    if raw:
+        target.print(
+            "[yellow]Raw export: it contains your hostname and network identifiers. "
+            "Review it before sharing.[/yellow]"
+        )
 
 
 @contextmanager

@@ -46,7 +46,7 @@ def _parse_service_state(output: str) -> str:
         if separator and label.strip().upper() == "STATE":
             parts = value.split()
             token = parts[-1].upper() if parts else ""
-            if token == "RUNNING":
+            if token == "RUNNING":  # noqa: S105  (a parsed state word, not a secret)
                 return "running"
             if token in _STARTING_STATES:
                 return "starting"
