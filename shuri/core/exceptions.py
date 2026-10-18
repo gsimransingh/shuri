@@ -9,3 +9,7 @@ class ShuriError(Exception):
 
 class UnknownDiagnosticError(ShuriError):
     """Raised when a named diagnostic is not registered."""
+
+
+class ExportError(ShuriError):
+    """Raised when a report cannot be written safely."""

@@ -257,9 +257,16 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
     if report.assessment:
         assessment = report.assessment
         generated = report.generated_at.strftime("%Y-%m-%d %H:%M UTC")
+        if assessment.unknown_checks:
+            headline = (
+                f"[bold yellow]Incomplete[/bold yellow] — partial score "
+                f"{assessment.score}/100 from the checks that ran"
+            )
+        else:
+            headline = f"[bold]{assessment.score}/100[/bold] — {assessment.label}"
         target.print(
             Panel.fit(
-                f"[bold]{assessment.score}/100[/bold] — {assessment.label}\n"
+                f"{headline}\n"
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
                 f"Coverage: {assessment.completed_checks}/{len(report.results)} checks "
                 f"({assessment.coverage_percent:.1f}%)\n"
@@ -316,9 +323,15 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
                 show_check_details(result, target)
 
 
-def show_exported(path: Path, console: Console | None = None) -> None:
-    """Confirm an exported report path."""
-    (console or _CONSOLE).print(f"[green]Report written to[/green] {path}")
+def show_exported(path: Path, console: Console | None = None, *, raw: bool = False) -> None:
+    """Confirm an exported report path, warning when identifiers were kept."""
+    target = console or _CONSOLE
+    target.print(f"[green]Report written to[/green] {path}")
+    if raw:
+        target.print(
+            "[yellow]Raw export: it contains your hostname and network identifiers. "
+            "Review it before sharing.[/yellow]"
+        )
 
 
 @contextmanager

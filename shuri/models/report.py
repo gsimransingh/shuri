@@ -13,7 +13,7 @@ from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION, __versi
 class CheckStatus(StrEnum):
     """Outcome of one diagnostic."""
 
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105  (a status label, not a password)
     WARNING = "warning"
     FAIL = "fail"
     UNKNOWN = "unknown"
@@ -44,6 +44,8 @@ class CheckResult:
     findings: tuple[str, ...] = ()
     deductions: tuple[ScoreDeduction, ...] = ()
     duration_ms: float = 0.0
+    error: str | None = None
+    """Exception class name when the diagnostic failed or timed out; never the message."""
 
 
 @dataclass(frozen=True, slots=True)

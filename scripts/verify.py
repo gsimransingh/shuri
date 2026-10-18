@@ -14,7 +14,8 @@ CONSTRAINTS = ROOT / "requirements" / "constraints-py312.txt"
 
 def _run(label: str, command: tuple[str, ...], *, cwd: Path = ROOT) -> None:
     print(f"\n==> {label}", flush=True)
-    subprocess.run(command, cwd=cwd, check=True, shell=False)
+    # Fixed developer commands, never user input.
+    subprocess.run(command, cwd=cwd, check=True, shell=False)  # noqa: S603
 
 
 def _environment_executable(environment: Path, name: str) -> Path:
