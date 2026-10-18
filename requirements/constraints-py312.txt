@@ -21,7 +21,7 @@ pygments==2.20.0
 pytest==9.1.1
 pytokens==0.4.1
 rich==15.0.0
-ruff==0.16.1
+ruff==0.17.0
 setuptools==83.0.0
 shellingham==1.5.4
 typer==0.27.0
