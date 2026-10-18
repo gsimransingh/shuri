@@ -23,8 +23,22 @@ class ScoringPolicy:
     low_battery_health_percent: float = 80.0
     critical_battery_health_percent: float = 60.0
     stale_antivirus_signature_days: int = 14
-    repeated_error_event_count: int = 5
+    high_signal_error_incident_count: int = 1
     event_burst_window_seconds: int = 60
+    # System-log error sources that indicate real storage, file-system or hardware
+    # trouble. Other Error-level events are common background noise on healthy PCs,
+    # so they are reported but never scored.
+    high_signal_event_providers: tuple[str, ...] = (
+        "disk",
+        "ntfs",
+        "microsoft-windows-ntfs",
+        "volmgr",
+        "partmgr",
+        "storahci",
+        "stornvme",
+        "microsoft-windows-storport",
+        "microsoft-windows-whea-logger",
+    )
     high_drive_temperature_celsius: float = 70.0
     high_drive_wear_percent: float = 90.0
     high_cpu_points: int = 5
@@ -48,7 +62,7 @@ class ScoringPolicy:
     realtime_antivirus_disabled_points: int = 10
     stale_antivirus_signatures_points: int = 5
     critical_event_points: int = 10
-    repeated_error_event_points: int = 5
+    high_signal_error_points: int = 5
     physical_drive_warning_points: int = 8
     physical_drive_failure_points: int = 20
 

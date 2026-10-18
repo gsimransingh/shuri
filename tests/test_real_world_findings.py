@@ -46,24 +46,66 @@ def test_boot_burst_of_identical_errors_is_one_incident(monkeypatch: pytest.Monk
     assert counts[3] == 35
 
 
-def test_many_distinct_incidents_still_deduct(monkeypatch: pytest.MonkeyPatch) -> None:
-    events = [_event(3600 * hour, event_id=hour) for hour in range(5)]
+def test_many_distinct_noise_incidents_are_reported_but_not_scored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: a healthy PC logged 30 benign error incidents and lost points."""
+    events = [
+        _event(3600 * hour, event_id=3503, provider="Microsoft-Windows-DeviceAssociationService")
+        for hour in range(20)
+    ]
 
     result = _run_check(monkeypatch, events)
 
+    assert result.metrics["error_incidents"] == 20
+    assert result.metrics["high_signal_incidents"] == 0
+    assert result.status is CheckStatus.PASS
+    assert result.deductions == ()
+    assert result.findings == ()
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ("disk", "Ntfs", "volmgr", "stornvme", "Microsoft-Windows-WHEA-Logger"),
+)
+def test_storage_or_hardware_error_is_scored(
+    monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    result = _run_check(monkeypatch, [_event(0, event_id=11, provider=provider)])
+
     assert result.status is CheckStatus.WARNING
     assert result.deductions[0].points == 5
-    assert "5 separate System error incident(s)" in result.findings[0]
+    assert provider in result.findings[0]
+    assert result.metrics["recent_events"][0]["high_signal"] is True
+
+
+def test_storage_warning_level_event_is_not_scored(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = _run_check(monkeypatch, [_event(0, event_id=157, provider="disk", level=3)])
+
+    assert result.status is CheckStatus.PASS
+    assert result.deductions == ()
+
+
+def test_critical_event_still_fails_and_deducts_once_with_storage_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events = [_event(0, level=1, provider="Kernel-Power", event_id=41), _event(5, provider="disk")]
+
+    result = _run_check(monkeypatch, events)
+
+    assert result.status is CheckStatus.FAIL
+    assert [item.points for item in result.deductions] == [10, 5]
 
 
 def test_steady_repeating_fault_is_not_hidden_by_grouping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    events = [_event(30 * index) for index in range(40)]  # one error every 30s for 20 minutes
+    events = [_event(30 * index, provider="disk", event_id=7) for index in range(40)]
 
     result = _run_check(monkeypatch, events)
 
     assert result.metrics["error_incidents"] >= 5
+    assert result.metrics["high_signal_incidents"] >= 5
     assert result.status is CheckStatus.WARNING
 
 

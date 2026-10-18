@@ -95,6 +95,15 @@ def group_event_incidents(payload: str) -> tuple[dict[str, object], ...]:
     return tuple(incident for _, incident in incidents)
 
 
+def _is_high_signal(entry: dict[str, Any], level: int) -> bool:
+    provider = entry.get("ProviderName")
+    return (
+        level == 2
+        and isinstance(provider, str)
+        and provider.casefold() in DEFAULT_POLICY.high_signal_event_providers
+    )
+
+
 def _incident(entry: dict[str, Any], level: int, count: int) -> dict[str, object]:
     return {
         "time_created": entry.get("TimeCreated", "Unavailable"),
@@ -102,6 +111,7 @@ def _incident(entry: dict[str, Any], level: int, count: int) -> dict[str, object
         "event_id": entry.get("Id", "Unavailable"),
         "provider": entry.get("ProviderName", "Unavailable"),
         "count": count,
+        "high_signal": _is_high_signal(entry, level),
     }
 
 
@@ -144,6 +154,7 @@ def check_event_logs() -> CheckResult:
     critical, errors, warnings, truncated = counts
     incidents = group_event_incidents(result.output)
     error_incidents = sum(1 for incident in incidents if incident["level"] == "Error")
+    flagged = [incident for incident in incidents if incident["high_signal"]]
     event_details = incidents[:_MAX_INCIDENTS_SHOWN]
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []
@@ -158,17 +169,17 @@ def check_event_logs() -> CheckResult:
                 "eventlogs",
             )
         )
-    if error_incidents >= DEFAULT_POLICY.repeated_error_event_count:
+    if len(flagged) >= DEFAULT_POLICY.high_signal_error_incident_count:
         status = CheckStatus.WARNING if status is CheckStatus.PASS else status
+        sources = sorted({f"{item['provider']} (event {item['event_id']})" for item in flagged})
         findings.append(
-            f"{error_incidents} separate System error incident(s) found "
-            f"({errors} error event(s) in total)."
+            f"{len(flagged)} storage or hardware error incident(s) found: "
+            f"{', '.join(sources[:3])}{' and more' if len(sources) > 3 else ''}."
         )
         deductions.append(
             ScoreDeduction(
-                f"{DEFAULT_POLICY.repeated_error_event_count} or more separate "
-                "System error incidents were found",
-                DEFAULT_POLICY.repeated_error_event_points,
+                "Storage, file-system or hardware errors were logged",
+                DEFAULT_POLICY.high_signal_error_points,
                 "eventlogs",
             )
         )
@@ -180,11 +191,15 @@ def check_event_logs() -> CheckResult:
         name="eventlogs",
         title="Event Logs",
         status=status,
-        summary=f"Last 24 hours: {critical} critical, {errors} errors, {warnings} warnings.",
+        summary=(
+            f"Last 24 hours: {critical} critical, {errors} errors "
+            f"({error_incidents} incidents), {warnings} warnings."
+        ),
         metrics={
             "critical": critical,
             "errors": errors,
             "error_incidents": error_incidents,
+            "high_signal_incidents": len(flagged),
             "warnings": warnings,
             "window_hours": 24,
             "truncated": truncated,
