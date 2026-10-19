@@ -1,4 +1,8 @@
-"""The user-facing Typer command-line application."""
+"""The user-facing Typer command-line application.
+
+``shuri`` runs the full readiness scan. ``shuri check <name>`` runs one check. The older
+``doctor`` command and one-command-per-check names still work as hidden, deprecated aliases.
+"""
 
 from __future__ import annotations
 
@@ -24,15 +28,35 @@ from shuri.reporters.terminal import (
     show_check,
     show_check_details,
     show_exported,
+    show_hint,
     show_report,
 )
 from shuri.utils.files import write_report_file
 from shuri.utils.helpers import default_report_path
 
+# Static so that importing the CLI stays fast; a test keeps it in step with the registry.
+CHECK_NAMES = (
+    "system",
+    "cpu",
+    "memory",
+    "disk",
+    "physical_drives",
+    "network",
+    "battery",
+    "services",
+    "updates",
+    "antivirus",
+    "eventlogs",
+)
+_CHECK_ALIASES = {"drives": "physical_drives"}
+
 app = typer.Typer(
     name="shuri",
-    help="Fast, transparent Windows workstation-readiness diagnostics.",
-    no_args_is_help=True,
+    help=(
+        "Fast, read-only readiness check for a Windows workstation.\n\n"
+        "Run 'shuri' for the full check, 'shuri check <name>' for one check."
+    ),
+    epilog="Exit codes: 0 all passed, 1 warnings, 2 failed, 3 incomplete (missing evidence).",
     add_completion=False,
 )
 
@@ -45,18 +69,38 @@ class _State:
 _STATE = _State()
 _ERRORS = Console(stderr=True)
 
-
-@app.callback()
-def _main(
-    debug: Annotated[
-        bool,
-        typer.Option(
-            "--debug",
-            help="Print tracebacks for failed diagnostics to stderr (they may contain file paths).",
-        ),
-    ] = False,
-) -> None:
-    _STATE.debug = debug
+DetailsOption = Annotated[
+    bool, typer.Option("--details", "-d", help="Show the detailed evidence behind each result.")
+]
+ProbeOption = Annotated[
+    bool,
+    typer.Option(
+        "--probe",
+        help="Also probe the network (one DNS lookup, one TCP connection). Off by default.",
+    ),
+]
+JsonOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--json",
+        metavar="PATH",
+        help="Also save a JSON report to PATH. Hostname and network identifiers are redacted.",
+    ),
+]
+RawOption = Annotated[
+    bool,
+    typer.Option("--raw", help="With --json: keep hostname and network identifiers (be careful)."),
+]
+ForceOption = Annotated[
+    bool, typer.Option("--force", help="With --json: replace the file if it already exists.")
+]
+DebugOption = Annotated[
+    bool,
+    typer.Option(
+        "--debug",
+        help="Print tracebacks of failed diagnostics to stderr (they may contain file paths).",
+    ),
+]
 
 
 def _print_tracebacks(runner: DiagnosticRunner) -> None:
@@ -65,19 +109,17 @@ def _print_tracebacks(runner: DiagnosticRunner) -> None:
         sys.stderr.write(trace)
 
 
-OutputPath = Annotated[
-    Path | None, typer.Option("--output", "-o", help="Where to write the JSON report.")
-]
-ReportFormat = Annotated[str | None, typer.Option("--format", "-f", help="json")]
+def _deprecated(instead: str) -> None:
+    _ERRORS.print(f"[dim]Deprecated: use '{instead}' instead.[/dim]")
 
 
-def _build_report(names: tuple[str, ...] | None = None) -> Report:
-    registry = default_registry()
+def _build_report(*, probe: bool = False) -> Report:
+    registry = default_registry(probe=probe)
     started = perf_counter()
     runner = DiagnosticRunner(registry, capture_tracebacks=_STATE.debug)
     with scan_progress() as progress:
         results = runner.run(
-            names,
+            None,
             progress=progress,
             max_workers=4,
             serial_names=("cpu",),
@@ -100,32 +142,106 @@ def _export(report: Report, output: Path | None, *, raw: bool = False, force: bo
         raise typer.BadParameter(str(error)) from None
 
 
+def _run_scan(
+    *,
+    details: bool,
+    json_path: Path | None,
+    raw: bool,
+    force: bool,
+    probe: bool,
+    export: bool,
+) -> None:
+    """Run every check, show the report, optionally export it, and exit with its code."""
+    report = _build_report(probe=probe)
+    show_report(report, details=details)
+    if export:
+        show_exported(_export(report, json_path, raw=raw, force=force), raw=raw)
+    else:
+        show_hint()
+    raise typer.Exit(int(exit_code_for(report.results)))
+
+
+def _run_check(name: str, *, details: bool, probe: bool) -> None:
+    runner = DiagnosticRunner(default_registry(probe=probe), capture_tracebacks=_STATE.debug)
+    result = runner.run((name,))[0]
+    _print_tracebacks(runner)
+    show_check(result)
+    if details:
+        show_check_details(result)
+    raise typer.Exit(int(exit_code_for((result,))))
+
+
+@app.callback(invoke_without_command=True)
+def _main(
+    ctx: typer.Context,
+    details: DetailsOption = False,
+    json_path: JsonOption = None,
+    raw: RawOption = False,
+    force: ForceOption = False,
+    probe: ProbeOption = False,
+    debug: DebugOption = False,
+) -> None:
+    """Run the full readiness check when no command is given."""
+    _STATE.debug = debug
+    if ctx.invoked_subcommand is not None:
+        if details or json_path or raw or force or probe:
+            raise typer.BadParameter(
+                "Put --details, --json, --raw, --force and --probe after the command, "
+                "for example: shuri check cpu --details"
+            )
+        return
+    if (raw or force) and json_path is None:
+        raise typer.BadParameter("--raw and --force only apply together with --json PATH.")
+    _run_scan(
+        details=details,
+        json_path=json_path,
+        raw=raw,
+        force=force,
+        probe=probe,
+        export=json_path is not None,
+    )
+
+
+@app.command()
+def check(
+    name: Annotated[str, typer.Argument(help="Which check to run.", metavar="NAME")],
+    details: DetailsOption = False,
+    probe: ProbeOption = False,
+) -> None:
+    """Run one check: system, cpu, memory, disk, physical_drives (drives), network, battery,
+    services, updates, antivirus or eventlogs."""
+    resolved = _CHECK_ALIASES.get(name.lower(), name.lower())
+    if resolved not in CHECK_NAMES:
+        valid = ", ".join([*CHECK_NAMES, *_CHECK_ALIASES])
+        raise typer.BadParameter(f"'{name}' is not a check. Choose one of: {valid}.")
+    _run_check(resolved, details=details, probe=probe)
+
+
+@app.command()
+def version() -> None:
+    """Display the installed Shuri version."""
+    Console().print(f"Shuri {__version__}")
+
+
+# --- Deprecated aliases, kept hidden for one release ---------------------------------------------
+
+
 def _validate_action(action: str | None) -> None:
     if action not in {None, "show"}:
         raise typer.BadParameter("The only supported action is 'show'.")
 
 
-@app.command()
-def doctor(
-    action: Annotated[str | None, typer.Argument(help="Use 'show' for detailed evidence.")] = None,
-    report_format: ReportFormat = None,
-    output: OutputPath = None,
-    raw: Annotated[
-        bool,
-        typer.Option(
-            "--raw",
-            help="Keep hostname and network identifiers in the JSON export (redacted by default).",
-        ),
-    ] = False,
-    force: Annotated[
-        bool, typer.Option("--force", help="Replace the export file if it already exists.")
-    ] = False,
-    redact: Annotated[
-        bool,
-        typer.Option("--redact", hidden=True, help="Deprecated: exports are redacted by default."),
-    ] = False,
+@app.command(name="doctor", hidden=True)
+def _legacy_doctor(
+    action: Annotated[str | None, typer.Argument()] = None,
+    report_format: Annotated[str | None, typer.Option("--format", "-f")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    raw: RawOption = False,
+    force: ForceOption = False,
+    redact: Annotated[bool, typer.Option("--redact", hidden=True)] = False,
 ) -> None:
-    """Run the Windows workstation-readiness assessment."""
+    """Deprecated: run 'shuri' instead."""
+    _deprecated("shuri")
     _validate_action(action)
     if report_format and report_format.lower() != "json":
         raise typer.BadParameter("Format must be json.")
@@ -133,97 +249,37 @@ def doctor(
         raise typer.BadParameter("--output, --raw, --redact and --force require --format json.")
     if raw and redact:
         raise typer.BadParameter("--raw and --redact cannot be combined.")
-    report = _build_report()
-    show_report(report, details=action == "show")
-    if report_format:
-        show_exported(_export(report, output, raw=raw, force=force), raw=raw)
-    raise typer.Exit(int(exit_code_for(report.results)))
+    _run_scan(
+        details=action == "show",
+        json_path=output,
+        raw=raw,
+        force=force,
+        probe=False,
+        export=report_format is not None,
+    )
 
 
-def _single_check(name: str, action: str | None = None) -> None:
-    _validate_action(action)
-    runner = DiagnosticRunner(default_registry(), capture_tracebacks=_STATE.debug)
-    result = runner.run((name,))[0]
-    _print_tracebacks(runner)
-    show_check(result)
-    if action == "show":
-        show_check_details(result)
-    raise typer.Exit(int(exit_code_for((result,))))
+def _register_legacy_check(command: str, check_name: str) -> None:
+    def legacy(action: Annotated[str | None, typer.Argument()] = None) -> None:
+        _deprecated(f"shuri check {command}")
+        _validate_action(action)
+        _run_check(check_name, details=action == "show", probe=False)
+
+    legacy.__doc__ = f"Deprecated: run 'shuri check {command}' instead."
+    app.command(name=command, hidden=True)(legacy)
 
 
-def _run_single_command(name: str, action: str | None) -> None:
-    _single_check(name, action)
-
-
-@app.command()
-def cpu(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run CPU diagnostics only."""
-    _run_single_command("cpu", action)
-
-
-@app.command()
-def memory(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run memory diagnostics only."""
-    _run_single_command("memory", action)
-
-
-@app.command()
-def disk(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run disk diagnostics only."""
-    _run_single_command("disk", action)
-
-
-@app.command(name="drives")
-def physical_drives(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run physical-drive reliability diagnostics only."""
-    _run_single_command("physical_drives", action)
-
-
-@app.command()
-def network(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run network diagnostics only."""
-    _run_single_command("network", action)
-
-
-@app.command()
-def battery(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run battery diagnostics only."""
-    _run_single_command("battery", action)
-
-
-@app.command()
-def system(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run operating-system diagnostics only."""
-    _run_single_command("system", action)
-
-
-@app.command()
-def services(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Windows service diagnostics only."""
-    _run_single_command("services", action)
-
-
-@app.command()
-def updates(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Windows update diagnostics only."""
-    _run_single_command("updates", action)
-
-
-@app.command()
-def antivirus(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run Microsoft Defender diagnostics only."""
-    _run_single_command("antivirus", action)
-
-
-@app.command(name="eventlogs")
-def event_logs(action: Annotated[str | None, typer.Argument()] = None) -> None:
-    """Run recent Windows event-log diagnostics only."""
-    _run_single_command("eventlogs", action)
-
-
-@app.command()
-def version() -> None:
-    """Display the installed Shuri version."""
-    from rich.console import Console
-
-    Console().print(f"Shuri {__version__}")
+for _command, _check_name in (
+    ("cpu", "cpu"),
+    ("memory", "memory"),
+    ("disk", "disk"),
+    ("drives", "physical_drives"),
+    ("network", "network"),
+    ("battery", "battery"),
+    ("system", "system"),
+    ("services", "services"),
+    ("updates", "updates"),
+    ("antivirus", "antivirus"),
+    ("eventlogs", "eventlogs"),
+):
+    _register_legacy_check(_command, _check_name)

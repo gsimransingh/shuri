@@ -38,7 +38,7 @@ Avoid:
 
 ### 3. Speed and simplicity
 
-- Measure `shuri doctor` startup and total scan time on representative workstations.
+- Measure `shuri` startup and total scan time on representative workstations.
 - Set bounded timeouts for slow native facilities and remove work that does not change the result.
 - Keep the `shuri` command surface small and the dependency set minimal.
 

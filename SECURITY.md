@@ -20,8 +20,9 @@ every change:
   a program outside that fixed list is refused.
 - **Read-only.** Checks query state; they never change services, settings, files or the network.
   The one temporary file (the battery report) has a random name and is deleted afterwards.
-- **No telemetry.** Shuri sends nothing anywhere. Its network check makes one DNS lookup and one
-  TCP connection to documented probe targets; that is the only outbound traffic (see the README).
+- **No telemetry, no outbound traffic by default.** Shuri sends nothing anywhere. The default scan
+  is fully local. Only `--probe` makes network calls: one DNS lookup and one TCP connection to the
+  documented probe targets, with nothing sent over the connection (see the README).
 - **Safe exports.** JSON reports are redacted by default using an allow-list, so an unreviewed
   field is hidden rather than leaked. Exports never overwrite an existing file without `--force`,
   never follow symbolic links, and are written atomically. `--raw` keeps identifiers and prints a

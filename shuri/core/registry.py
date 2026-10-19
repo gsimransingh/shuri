@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from functools import partial
 
 from shuri.core.exceptions import UnknownDiagnosticError
 from shuri.models import CheckResult
@@ -37,8 +38,11 @@ class DiagnosticRegistry:
         return iter(self._checks.items())
 
 
-def default_registry() -> DiagnosticRegistry:
-    """Build the diagnostics available in Shuri's initial release."""
+def default_registry(*, probe: bool = False) -> DiagnosticRegistry:
+    """Build the diagnostics available in a standard scan.
+
+    ``probe`` enables the network check's DNS and TCP probes, the only outbound traffic.
+    """
     from shuri.checks.antivirus import check_antivirus
     from shuri.checks.battery import check_battery
     from shuri.checks.cpu import check_cpu
@@ -58,7 +62,7 @@ def default_registry() -> DiagnosticRegistry:
         ("memory", check_memory),
         ("disk", check_disk),
         ("physical_drives", check_physical_drives),
-        ("network", check_network),
+        ("network", partial(check_network, probe=probe)),
         ("battery", check_battery),
         ("services", check_services),
         ("updates", check_updates),

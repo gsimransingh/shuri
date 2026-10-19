@@ -90,6 +90,7 @@ SAFE_METRIC_KEYS = frozenset(
         "adapters",
         "is_up",
         "configuration_complete",
+        "probes_run",
         "dns_probe",
         "tcp_probe",
         "succeeded",

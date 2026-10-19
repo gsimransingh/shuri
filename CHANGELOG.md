@@ -2,19 +2,23 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
-## Unreleased
-
-### Added
-
-- Exit codes for scripting: `0` all passed, `1` warnings, `2` failures, `3` incomplete (missing evidence). They apply to `doctor` and every single-check command.
-- `shuri --debug` prints the traceback of a diagnostic that failed unexpectedly to stderr.
-- Each result records the exception class (`error`) when a diagnostic failed or timed out, never the message. The report schema version is now 5.
+## 0.6.0 — 2026-10-19
 
 ### Changed
 
+- Simpler command line: `shuri` runs the full check and `shuri check <name>` runs one check. `--details` replaces the `show` word, and `--json PATH` replaces `-f json -o PATH`. The old `shuri doctor` and one-command-per-check names still work for this release but are hidden and print a deprecation note.
+- The network check no longer touches the network by default. Its DNS and TCP probes run only with `--probe`, which keeps the default scan fully local and makes the "no telemetry" promise literal. The `SHURI_*` probe overrides apply only with `--probe`.
 - A scan with unknown checks now shows "Incomplete — partial score" instead of a bare score such as `100/100`.
 - The service check reads state through `psutil` and the `DelayedAutostart` registry flag instead of running and parsing `sc`, so it spawns no processes and no longer depends on command output.
 - Diagnostics run on daemon threads with a 45 second per-check and 90 second per-scan deadline. A check that hangs becomes `UNKNOWN` and never blocks the scan or process exit.
+
+### Added
+
+- Exit codes for scripting: `0` all passed, `1` warnings, `2` failures, `3` incomplete (missing evidence). They apply to the full scan and every single check.
+- `shuri --debug` prints the traceback of a diagnostic that failed unexpectedly to stderr.
+- Each result records the exception class (`error`) when a diagnostic failed or timed out, never the message. The report schema version is now 5.
+- `shuri check <name>` validates the name and lists the valid checks on a typo.
+- A short "reading the result" guide and a one-line hint after a scan.
 
 ### Fixed
 
