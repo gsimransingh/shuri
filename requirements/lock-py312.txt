@@ -499,9 +499,9 @@ typer==0.27.3 \
     # via
     #   -c requirements/constraints-py312.txt
     #   shuri-cli (pyproject.toml)
-types-psutil==7.2.2.20260518 \
-    --hash=sha256:6a3d697665754a60d7b5a41d5a2cff12b53f5e0676d77810cd28ba5e14cb4049 \
-    --hash=sha256:9f825f631463a5b4d26f19f63aebc9ec25f01140d655026f3ad8a67841f9b331
+types-psutil==7.2.2.20260906 \
+    --hash=sha256:93abf22cf9a62b915f724e433bde702995ac274865425fd4a76d1d9b5828da1a \
+    --hash=sha256:db00baf7f96c3f63421c4d3d68d373923094a0dfddf13e922c5c5fbc42488159
     # via
     #   -c requirements/constraints-py312.txt
     #   shuri-cli (pyproject.toml)
