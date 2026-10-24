@@ -2,7 +2,7 @@
 # Runtime metadata remains range-based for library compatibility; use this file for reproducibility.
 annotated-doc==0.0.5
 ast_serialize==0.13.0
-black==26.5.1
+black==26.10.1
 click==8.4.2
 colorama==0.4.6
 hatchling==1.31.0
