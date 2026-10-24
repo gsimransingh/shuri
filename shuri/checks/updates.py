@@ -78,8 +78,8 @@ def check_updates() -> CheckResult:
         return CheckResult(
             name="updates",
             title="Windows Update",
-            status=CheckStatus.UNKNOWN,
-            summary="Windows Update diagnostics are not available on this platform.",
+            status=CheckStatus.NOT_APPLICABLE,
+            summary="Windows Update is Windows-only; not applicable on this platform.",
         )
     reboot_pending = pending_reboot()
     update_count, update_failure = available_update_count()
