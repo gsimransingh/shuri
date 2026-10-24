@@ -12,7 +12,8 @@ Shuri is intentionally small. It is not an RMM, monitoring platform, SIEM, EDR, 
 - A transparent health score with every deduction shown
 
 Windows is the supported and continuously tested platform. Linux and macOS can run portable checks,
-but Windows-native readiness checks report `UNKNOWN` there and do not affect the score.
+but Windows-native readiness checks report `N/A` (not applicable) there and do not affect the score
+or coverage.
 
 ## Install
 
@@ -22,7 +23,7 @@ Shuri requires Python 3.12 or newer. Install it with `pipx` to make `shuri` avai
 py -m pip install --user pipx
 py -m pipx ensurepath
 # Open a new PowerShell window, then run:
-pipx install git+https://github.com/gsimransingh/shuri.git@v0.6.0
+pipx install git+https://github.com/gsimransingh/shuri.git@v0.7.0
 shuri
 ```
 
@@ -65,7 +66,8 @@ Add `--raw` to `--json` to keep hostname and network identifiers (it prints a wa
 | `PASS` | The check found no problem. | Nothing. |
 | `WARNING` | Something needs attention but is not blocking. | Read the action item; fix when convenient. |
 | `FAIL` | A real problem that affects readiness. | Act on the action item now. |
-| `UNKNOWN` | Shuri could not get trustworthy evidence. | Often needs elevation, or the feature is absent; it never lowers the score. |
+| `UNKNOWN` | A check that applies here could not get trustworthy evidence. | Often needs elevation; it lowers coverage and marks the scan incomplete, but never the score. |
+| `N/A` | The check does not apply to this machine (a Windows-only check on Linux, battery on a desktop). | Nothing; it is not a gap and does not affect coverage or the score. |
 
 The older `shuri doctor` and `shuri cpu` style commands still work for one more release but are
 deprecated; use `shuri` and `shuri check <name>` instead.

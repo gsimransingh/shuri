@@ -66,8 +66,8 @@ def check_battery() -> CheckResult:
         return CheckResult(
             name="battery",
             title="Battery",
-            status=CheckStatus.UNKNOWN,
-            summary="No battery information is available on this device.",
+            status=CheckStatus.NOT_APPLICABLE,
+            summary="No battery on this machine; battery readiness does not apply.",
         )
     deductions: list[ScoreDeduction] = []
     findings: list[str] = []

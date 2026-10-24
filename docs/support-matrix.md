@@ -9,5 +9,9 @@ integration, including safe read-only PowerShell and physical-drive checks.
 | Physical drives | Supported through Windows Storage Management | Unavailable |
 | Services, updates, Defender, event logs | Supported through Windows-native facilities | Unavailable |
 
-An unavailable check returns `UNKNOWN` and does not reduce the health score. This lets Shuri remain
+A check that does not apply to the current platform returns `N/A` (Not Applicable): it does not
+reduce the health score and is excluded from coverage, so a Linux or macOS scan reads as a complete
+assessment of the checks that apply rather than an incomplete Windows scan. A check that *does*
+apply but cannot get trustworthy evidence returns `UNKNOWN`, which lowers coverage. This lets Shuri
+remain
 runnable off Windows without pretending to provide an equivalent readiness assessment there.

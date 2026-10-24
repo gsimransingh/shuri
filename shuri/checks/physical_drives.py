@@ -236,9 +236,10 @@ def check_physical_drives() -> CheckResult:
         return CheckResult(
             name="physical_drives",
             title="Physical Drives",
-            status=CheckStatus.UNKNOWN,
+            status=CheckStatus.NOT_APPLICABLE,
             summary=(
-                "Physical-drive reliability diagnostics are currently available only on Windows."
+                "Physical-drive reliability is read through Windows Storage Management; "
+                "not applicable on this platform."
             ),
         )
     drives, result = _physical_drive_snapshots()

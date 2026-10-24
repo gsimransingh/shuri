@@ -2,6 +2,17 @@
 
 Notable user-facing changes to Shuri are recorded here.
 
+## 0.7.0 — 2026-10-24
+
+### Changed
+
+- A check that does not apply to the current machine now reports **`N/A` (Not Applicable)** instead of `UNKNOWN`: the Windows-only checks (services, Windows Update, Defender, event logs, physical-drive health) on Linux/macOS, and battery health on a machine with no battery. Not-applicable checks are excluded from coverage and never make a scan "Incomplete", so a Linux, macOS or desktop scan reads as a complete assessment of the checks that apply. `UNKNOWN` now means only a check that applies here but could not get trustworthy evidence. The report schema version is now 6, and the assessment records `not_applicable_checks`.
+- The result header names the assessed platform and how many checks are not applicable on it, and coverage is shown over applicable checks.
+
+### Note
+
+This is the first increment of the staged cross-platform direction (see `docs/codebase-review-and-roadmap.md`): it makes a non-Windows scan *honest*, before any native Linux/macOS evidence is added.
+
 ## 0.6.0 — 2026-10-19
 
 ### Changed

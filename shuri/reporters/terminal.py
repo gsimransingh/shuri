@@ -22,11 +22,25 @@ _STATUS_STYLES = {
     CheckStatus.WARNING: "yellow",
     CheckStatus.FAIL: "red",
     CheckStatus.UNKNOWN: "dim",
+    CheckStatus.NOT_APPLICABLE: "dim",
 }
+_STATUS_LABELS = {CheckStatus.NOT_APPLICABLE: "N/A"}
 
 
 def _status_text(status: CheckStatus) -> Text:
-    return Text(status.value.upper(), style=f"bold {_STATUS_STYLES[status]}")
+    label = _STATUS_LABELS.get(status, status.value.upper())
+    return Text(label, style=f"bold {_STATUS_STYLES[status]}")
+
+
+def _platform_name(report: Report) -> str:
+    """Name the assessed OS from the report's own evidence, falling back to this host's."""
+    for result in report.results:
+        system = result.metrics.get("system")
+        if isinstance(system, str) and system:
+            return system
+    import platform
+
+    return platform.system() or "this platform"
 
 
 def _metric_value(key: str, value: object) -> str:
@@ -264,12 +278,20 @@ def show_report(report: Report, console: Console | None = None, *, details: bool
             )
         else:
             headline = f"[bold]{assessment.score}/100[/bold] — {assessment.label}"
+        applicable = len(report.results) - len(assessment.not_applicable_checks)
+        not_applicable_line = ""
+        if assessment.not_applicable_checks:
+            not_applicable_line = (
+                f"Not applicable on {_platform_name(report)}: "
+                f"{len(assessment.not_applicable_checks)} check(s)\n"
+            )
         target.print(
             Panel.fit(
                 f"{headline}\n"
                 f"100 - {assessment.total_deductions} deduction point(s) = {assessment.score}\n"
-                f"Coverage: {assessment.completed_checks}/{len(report.results)} checks "
+                f"Coverage: {assessment.completed_checks}/{applicable} applicable checks "
                 f"({assessment.coverage_percent:.1f}%)\n"
+                f"{not_applicable_line}"
                 f"Scan duration: {report.duration_ms / 1000:.1f}s\n"
                 f"Host: {report.hostname}   •   {generated}",
                 title=title,

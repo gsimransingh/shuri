@@ -149,8 +149,8 @@ def check_services() -> CheckResult:
         return CheckResult(
             name="services",
             title="Windows Services",
-            status=CheckStatus.UNKNOWN,
-            summary="Windows service diagnostics are not available on this platform.",
+            status=CheckStatus.NOT_APPLICABLE,
+            summary="Windows services are Windows-only; not applicable on this platform.",
         )
     inspected = {name: _inspect_service(name) for name in _SERVICES}
     if all(status.state == "unavailable" for status in inspected.values()):

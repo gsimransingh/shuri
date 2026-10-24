@@ -89,8 +89,8 @@ def check_antivirus() -> CheckResult:
         return CheckResult(
             name="antivirus",
             title="Antivirus",
-            status=CheckStatus.UNKNOWN,
-            summary="Microsoft Defender diagnostics are only available on Windows.",
+            status=CheckStatus.NOT_APPLICABLE,
+            summary="Microsoft Defender is Windows-only; not applicable on this platform.",
         )
     status_data, defender_query = _defender_status()
     if status_data is None:

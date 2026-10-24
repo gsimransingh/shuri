@@ -121,8 +121,8 @@ def check_event_logs() -> CheckResult:
         return CheckResult(
             name="eventlogs",
             title="Event Logs",
-            status=CheckStatus.UNKNOWN,
-            summary="Windows event-log diagnostics are not available on this platform.",
+            status=CheckStatus.NOT_APPLICABLE,
+            summary="The Windows event log is Windows-only; not applicable on this platform.",
         )
     script = (
         "$ErrorActionPreference = 'Stop'; try { "

@@ -11,12 +11,19 @@ from shuri.version import REPORT_SCHEMA_VERSION, SCORING_POLICY_VERSION, __versi
 
 
 class CheckStatus(StrEnum):
-    """Outcome of one diagnostic."""
+    """Outcome of one diagnostic.
+
+    ``UNKNOWN`` means a check that applies here could not get trustworthy evidence.
+    ``NOT_APPLICABLE`` means the check does not apply to this machine at all (for example a
+    Windows-only check on Linux, or battery health on a desktop). The two are kept distinct so a
+    result reads honestly: a not-applicable check is not a gap in the assessment.
+    """
 
     PASS = "pass"  # noqa: S105  (a status label, not a password)
     WARNING = "warning"
     FAIL = "fail"
     UNKNOWN = "unknown"
+    NOT_APPLICABLE = "not_applicable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +64,7 @@ class HealthAssessment:
     deductions: tuple[ScoreDeduction, ...] = ()
     completed_checks: int = 0
     unknown_checks: tuple[str, ...] = ()
+    not_applicable_checks: tuple[str, ...] = ()
     coverage_percent: float = 100.0
     policy_version: int = SCORING_POLICY_VERSION
 
