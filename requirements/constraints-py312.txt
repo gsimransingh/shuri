@@ -1,7 +1,7 @@
 # Tested direct dependency set for Python 3.12 development, CI, and release verification.
 # Runtime metadata remains range-based for library compatibility; use this file for reproducibility.
 annotated-doc==0.0.5
-ast_serialize==0.13.0
+ast_serialize==0.13.1
 black==26.10.1
 click==8.4.2
 colorama==0.4.6
